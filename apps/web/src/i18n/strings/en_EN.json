@@ -2274,6 +2274,7 @@
             "uploaded_sound": "Uploaded sound"
         },
         "people": {
+            "knock_ban": "Decline and ban from accessing",
             "knock_empty": "No requests",
             "knock_section": "Asking to join",
             "see_less": "See less",
