@@ -38,6 +38,13 @@
         "view_source": "View source",
         "yes": "Yes"
     },
+    "clawdia_agent": {
+        "create": "Create agent",
+        "description": "Description (optional)",
+        "name": "Name",
+        "preparing": "Preparing your agent…",
+        "private_description": "Only you can talk to this agent."
+    },
     "common": {
         "attachment": "Attachment",
         "encryption_enabled": "Encryption enabled",

@@ -35,5 +35,13 @@
             "error_downloading_audio": "Erro ao baixar o áudio",
             "unnamed_audio": "Áudio sem nome"
         }
+    },
+    "clawdia_agent": {
+        "create": "Criar agente",
+        "private_description": "Só você pode conversar com este agente.",
+        "name": "Nome",
+        "description": "Descrição (opcional)",
+        "preparing": "Preparando seu agente…",
+        "retry_error": "Não foi possível abrir a conversa. Tente novamente para continuar criando o mesmo agente."
     }
 }

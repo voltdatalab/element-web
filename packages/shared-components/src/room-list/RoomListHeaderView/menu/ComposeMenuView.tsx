@@ -36,7 +36,7 @@ interface ComposeMenuViewProps {
 export function ComposeMenuView({ vm }: ComposeMenuViewProps): JSX.Element {
     const { translate: _t } = useI18n();
     const [open, setOpen] = useState(false);
-    const { canCreateRoom, canCreateVideoRoom, displaySectionReleaseAnnouncement, areSectionsEnabled } =
+    const { canCreateRoom, canCreateVideoRoom, displaySectionReleaseAnnouncement, areSectionsEnabled, canCreateAgent } =
         useViewModel(vm);
 
     // 28px button with a 20px icon
@@ -69,6 +69,14 @@ export function ComposeMenuView({ vm }: ComposeMenuViewProps): JSX.Element {
             align="start"
             trigger={button}
         >
+            {canCreateAgent && (
+                <MenuItem
+                    Icon={PlusIcon}
+                    label={_t("clawdia_agent|create")}
+                    onSelect={vm.createAgent ?? null}
+                    hideChevron
+                />
+            )}
             <MenuItem Icon={ChatIcon} label={_t("action|start_chat")} onSelect={vm.createChatRoom} hideChevron />
             {canCreateRoom && (
                 <MenuItem Icon={RoomIcon} label={_t("action|new_room")} onSelect={vm.createRoom} hideChevron />

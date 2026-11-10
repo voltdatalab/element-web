@@ -18,6 +18,24 @@ describe("<ComposeMenuView />", () => {
         vi.clearAllMocks();
     });
 
+    it("offers agent creation when enabled even without room creation rights", async () => {
+        const createAgent = vi.fn();
+        const vm = Object.assign(
+            new MockedViewModel({
+                ...defaultSnapshot,
+                canCreateAgent: true,
+                canCreateRoom: false,
+                canCreateVideoRoom: false,
+                areSectionsEnabled: false,
+            }),
+            { createAgent },
+        );
+        render(<ComposeMenuView vm={vm} />);
+        await userEvent.click(screen.getByRole("button", { name: "New" }));
+        await userEvent.click(screen.getByRole("menuitem", { name: "Create agent" }));
+        expect(createAgent).toHaveBeenCalledOnce();
+    });
+
     it("should match snapshot", () => {
         const vm = new MockedViewModel(defaultSnapshot);
         const { asFragment } = render(<ComposeMenuView vm={vm} />);

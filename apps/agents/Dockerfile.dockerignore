@@ -1,0 +1,7 @@
+.git
+**/node_modules
+**/state
+**/.env*
+**/webapp
+**/dist
+**/coverage

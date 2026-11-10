@@ -50,7 +50,8 @@
         "typescript": "catalog:ts6",
         "unplugin-dts": "catalog:",
         "vite": "catalog:",
-        "vitest": "catalog:"
+        "vitest": "catalog:",
+        "@typescript/old": "npm:typescript@5.9.3"
     },
     "peerDependencies": {
         "@types/react": "*",

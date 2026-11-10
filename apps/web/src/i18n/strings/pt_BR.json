@@ -3912,5 +3912,13 @@
             "userInputs": "Não deve haver nenhum dado pessoal ou relacionado à página.",
             "wordByItself": "Uma palavra por si só é fácil de adivinhar"
         }
+    },
+    "clawdia_agent": {
+        "create": "Criar agente",
+        "private_description": "Só você pode conversar com este agente.",
+        "name": "Nome",
+        "description": "Descrição (opcional)",
+        "preparing": "Preparando seu agente…",
+        "retry_error": "Não foi possível abrir a conversa. Tente novamente para continuar criando o mesmo agente."
     }
 }

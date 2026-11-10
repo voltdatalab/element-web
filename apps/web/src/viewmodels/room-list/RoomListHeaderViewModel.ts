@@ -13,6 +13,10 @@ import {
     type SortOption,
 } from "@element-hq/web-shared-components";
 
+import Modal from "../../Modal";
+import { CreateAgentDialog } from "../../components/views/dialogs/CreateAgentDialog";
+import SdkConfig from "../../SdkConfig";
+
 import defaultDispatcher from "../../dispatcher/dispatcher";
 import PosthogTrackers from "../../PosthogTrackers";
 import { Action } from "../../dispatcher/actions";
@@ -147,6 +151,10 @@ export class RoomListHeaderViewModel
         this.snapshot.merge({
             areSectionsEnabled: SettingsStore.getValue("RoomList.showSections"),
         });
+    };
+
+    public createAgent = (): void => {
+        Modal.createDialog(CreateAgentDialog);
     };
 
     public createChatRoom = (e: Event): void => {
@@ -291,6 +299,7 @@ function getInitialSnapshot(spaceStore: SpaceStore, matrixClient: MatrixClient):
 
     return {
         activeSortOption,
+        canCreateAgent: SdkConfig.get("clawdia_agents") === true,
         isMessagePreviewEnabled,
         ...computeHeaderSpaceState(spaceStore, matrixClient),
     };

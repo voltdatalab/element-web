@@ -1,0 +1,26 @@
+{
+    "name": "@voltdatalab/clawdia-agents",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "engines": {
+        "node": ">=22.19"
+    },
+    "scripts": {
+        "start": "node src/server.ts",
+        "test:unit": "node --test src/*.test.ts",
+        "lint:types": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@earendil-works/chord": "1.5.2",
+        "@earendil-works/pi-ai": "1.5.2",
+        "@earendil-works/pi-durable": "1.5.2",
+        "matrix-bot-sdk": "0.8.0",
+        "proper-lockfile": "4.1.2"
+    },
+    "devDependencies": {
+        "@types/node": "catalog:",
+        "typescript": "catalog:ts6",
+        "@types/proper-lockfile": "4.1.4"
+    }
+}

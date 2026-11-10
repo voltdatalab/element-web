@@ -113,3 +113,5 @@ export * from "./status/UserStatusIconView";
 export * from "./devtools/CustomThemesView";
 // MVVM
 export * from "./core/viewmodel";
+
+export * from "./agents/CreateAgentView/CreateAgentView";

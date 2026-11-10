@@ -47,3 +47,5 @@ storybook-static
 # vitepress
 /docs/.vitepress/dist
 /docs/.vitepress/cache
+
+/apps/agents/state/

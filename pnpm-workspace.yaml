@@ -73,6 +73,10 @@ packageExtensions:
             vite: "^8.0.0"
 
 allowBuilds:
+    # The selected OpenAI provider does not need Google SDK install-time setup.
+    "@google/genai@2.21.0": false
+    # Matrix bot device encryption needs the pinned native SDK binding.
+    "@matrix-org/matrix-sdk-crypto-nodejs@0.4.0": true
     matrix-js-sdk: true
     # Needed to make the git dependency in layered.sh happy
     "matrix-js-sdk@git+https://github.com/matrix-org/matrix-js-sdk.git": true
@@ -216,6 +220,13 @@ overrides:
     "react-docgen-typescript>typescript": "catalog:ts6"
 
 minimumReleaseAgeExclude:
+    # Exact Pi revision inspected for the agent onboarding slice.
+    - "@earendil-works/chord@1.5.2"
+    - "@earendil-works/pi-ai@1.5.2"
+    - "@earendil-works/pi-codemode@1.5.2"
+    - "@earendil-works/pi-durable@1.5.2"
+    - "@earendil-works/pi-schema@1.5.2"
+    - "@earendil-works/pi-telemetry@1.5.2"
     - "matrix-js-sdk"
     - "@matrix-org/*"
     - "@vector-im/*"

@@ -30,6 +30,8 @@ export interface RoomListHeaderViewSnapshot {
      * The title of the room list
      */
     title: string;
+    /** Whether this installation offers agent provisioning. */
+    canCreateAgent?: boolean;
     /**
      * Whether to display the space menu
      * True if there is an active space
@@ -80,6 +82,8 @@ export interface RoomListHeaderViewActions {
      * Create a chat room
      */
     createChatRoom: (e: Event) => void;
+    /** Open the private agent creation dialog. */
+    createAgent?: () => void;
     /**
      * Create a room
      */
@@ -149,9 +153,16 @@ interface RoomListHeaderViewProps {
  */
 export function RoomListHeaderView({ vm }: Readonly<RoomListHeaderViewProps>): JSX.Element {
     const { translate: _t } = useI18n();
-    const { title, displaySpaceMenu, collapseSections, areSectionsEnabled, canCreateRoom, canCreateVideoRoom } =
-        useViewModel(vm);
-    const canOnlyStartChat = !areSectionsEnabled && !canCreateRoom && !canCreateVideoRoom;
+    const {
+        title,
+        displaySpaceMenu,
+        collapseSections,
+        areSectionsEnabled,
+        canCreateRoom,
+        canCreateVideoRoom,
+        canCreateAgent,
+    } = useViewModel(vm);
+    const canOnlyStartChat = !canCreateAgent && !areSectionsEnabled && !canCreateRoom && !canCreateVideoRoom;
 
     return (
         <Flex

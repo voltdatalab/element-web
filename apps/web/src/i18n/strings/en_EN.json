@@ -454,6 +454,10 @@
         "spaceinvaders_description": "Sends the given message with a space themed effect",
         "spaceinvaders_message": "sends space invaders"
     },
+    "clawdia_agent": {
+        "create": "Create agent",
+        "retry_error": "We could not open the conversation. Try again to continue creating the same agent."
+    },
     "common": {
         "access_token": "Access Token",
         "accessibility": "Accessibility",
