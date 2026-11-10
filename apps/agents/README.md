@@ -4,22 +4,24 @@ Primeira fatia da [direção da ClawdIA](https://github.com/fmercurio/claw-tenan
 
 O menu **Criar agente** abre um formulário de nome e descrição. O serviço autentica o dono pela sessão Matrix, provisiona um usuário de bot e uma DM privada criptografada, abre uma conversa Pi Durable e devolve a sala. O Element entra na sala e registra a DM. Novas mensagens do dono são admitidas em uma fila persistente, processadas pelo Pi e respondidas com transação Matrix estável.
 
-A revisão inicial usa Pi Durable 1.5.2, um provider OpenAI e o modelo da variável `PI_MODEL`. As ferramentas de shell e arquivos pertencem à fatia Firecracker posterior. O estado Pi, a identidade Matrix e as credenciais ficam no serviço.
+A revisão inicial usa Pi Durable 1.5.2, os providers `openai` (API key) e `openai-codex` (token de acesso), com o modelo da variável `PI_MODEL`. As ferramentas de shell e arquivos pertencem à fatia Firecracker posterior. O estado Pi, a identidade Matrix e as credenciais ficam no serviço.
 
 ## Executar o serviço
 
 Usar Node 22.19 ou superior e as dependências do workspace instaladas. Configurar no ambiente do serviço as seguintes variáveis.
 
-| Variável                | Uso                                                                        |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `MATRIX_HOMESERVER`     | URL fixa do Synapse da instalação.                                         |
-| `MATRIX_SERVER_NAME`    | Domínio dos IDs Matrix desse servidor.                                     |
-| `MATRIX_ADMIN_TOKEN`    | Credencial de provisionamento de usuários do Synapse, restrita ao backend. |
-| `CLAWDIA_ALLOWED_USERS` | MXIDs autorizados a criar agentes, separados por vírgula.                  |
-| `OPENAI_API_KEY`        | Credencial do modelo da instalação.                                        |
-| `PI_MODEL`              | ID do modelo no catálogo Pi fixado.                                        |
-| `CLAWDIA_STATE_DIR`     | Diretório privado persistente, padrão `./state`.                           |
-| `HOST` / `PORT`         | Bind do serviço, padrão `127.0.0.1:8787`.                                  |
+| Variável                | Uso                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| `MATRIX_HOMESERVER`     | URL fixa do Synapse da instalação.                                                         |
+| `MATRIX_SERVER_NAME`    | Domínio dos IDs Matrix desse servidor.                                                     |
+| `MATRIX_ADMIN_TOKEN`    | Credencial de provisionamento de usuários do Synapse, restrita ao backend.                 |
+| `CLAWDIA_ALLOWED_USERS` | MXIDs autorizados a criar agentes, separados por vírgula.                                  |
+| `PI_PROVIDER`           | `openai` (padrão) ou `openai-codex`.                                                       |
+| `OPENAI_API_KEY`        | Credencial para o provider `openai`.                                                       |
+| `PI_CODEX_ACCESS_FILE`  | Caminho de arquivo privado com `access` e `expires` em milissegundos, para `openai-codex`. |
+| `PI_MODEL`              | ID do modelo no catálogo Pi fixado.                                                        |
+| `CLAWDIA_STATE_DIR`     | Diretório privado persistente, padrão `./state`.                                           |
+| `HOST` / `PORT`         | Bind do serviço, padrão `127.0.0.1:8787`.                                                  |
 
 ```sh
 pnpm --filter @voltdatalab/clawdia-agents start
@@ -40,6 +42,8 @@ docker compose up -d synapse
 
 Criar o usuário de laboratório pelo `register_new_matrix_user` do Synapse e obter sua credencial administrativa para `MATRIX_ADMIN_TOKEN`. Guardar as variáveis acima em `.env` local, protegido, e então executar `docker compose up -d --build agents`. O admin token pertence somente a este homeserver de laboratório. As portas de loopback podem ser acessadas por túnel SSH.
 
+Para o provider Codex no laboratório, colocar uma cópia autorizada apenas do token de acesso em `/data/codex-access.json`, no volume privado do serviço, com modo `0600` e dono do processo. Definir `PI_PROVIDER=openai-codex`, `PI_CODEX_ACCESS_FILE=/data/codex-access.json` e o `PI_MODEL` existente na instalação. O arquivo tem formato `{"access":"<token>","expires":<epoch em milissegundos>}`. O serviço relê o arquivo a cada resolução de autenticação e recusa tokens a menos de cinco minutos da expiração. A renovação fica com o dono da credencial. O laboratório não recebe refresh token e não altera o perfil Hermes. Uma nova cópia de acesso deve ser provisionada após a renovação da origem.
+
 O arquivo `element.config.example.json` configura o cliente para esse laboratório. O serviço web em desenvolvimento pode usar `CLAWDIA_AGENTS_URL=http://127.0.0.1:18787`. Para validar o produto, criar o agente pela interface, enviar uma mensagem na DM e reiniciar o serviço, verificando a continuidade da conversa e da mesma sala.
 
 ## Verificação
@@ -55,7 +59,9 @@ CLAWDIA_MATRIX_TEST_CREDENTIALS=/caminho/privado/usuario-lab.json node --test --
 BASE_URL=http://127.0.0.1:8088 CLAWDIA_MATRIX_TEST_CREDENTIALS=/caminho/privado/usuario-lab.json pnpm --filter element-web exec playwright test playwright/e2e/agents/live-onboarding.spec.ts --project=Chrome --ignore-snapshots
 ```
 
-O teste de processo usa o provider determinístico por importação explícita da fixture. O teste de navegador requer uma API de laboratório iniciada com a mesma fixture, em estado separado. De `apps/agents`, com as demais variáveis Matrix configuradas, esse processo pode ser iniciado assim.
+Para validar uma resposta real pela interface, iniciar o serviço normal com o provider e o modelo configurados e acrescentar `CLAWDIA_REAL_MODEL_TEST=1` ao comando Playwright acima. Esse modo verifica uma soma com valores e marcador aleatórios e uma segunda resposta que depende do histórico. O relatório anexa o diálogo de teste e a captura da DM.
+
+O teste de processo também aceita `CLAWDIA_REAL_MODEL_TEST=1` com as variáveis do provider para validar a mesma DM e o histórico Pi após reiniciar o processo com LLM real. Sem essa opção, usa o provider determinístico por importação explícita da fixture. O teste de navegador requer uma API de laboratório iniciada com a mesma fixture, em estado separado. De `apps/agents`, com as demais variáveis Matrix configuradas, esse processo pode ser iniciado assim.
 
 ```sh
 NODE_ENV=test PI_MODEL=faux-1 OPENAI_API_KEY=integration-fixture-unused node --import ./src/fixtures/faux-model.ts src/server.ts

@@ -7,11 +7,30 @@ Please see LICENSE in the repository root for full details.
 
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
+import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
 import { AssistantEntry, createRegistry, Harness } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
+import { CodexAccessCredentials } from "./CodexAccessCredentials.ts";
 
-/** Durable Pi conversation with the installation's explicitly configured OpenAI model. */
+/** Resolve only the installation's explicitly selected provider and private credentials. */
+export function createInstallationModels(env: NodeJS.ProcessEnv = process.env): {
+    models: ReturnType<typeof createModels>;
+    provider: string;
+} {
+    const provider = env.PI_PROVIDER ?? "openai";
+    if (provider !== "openai" && provider !== "openai-codex") throw new Error("model_provider_not_supported");
+    if (provider === "openai" ? !env.OPENAI_API_KEY : !env.PI_CODEX_ACCESS_FILE)
+        throw new Error("model_not_configured");
+    const models = createModels({
+        credentials: provider === "openai-codex" ? new CodexAccessCredentials(env.PI_CODEX_ACCESS_FILE!) : undefined,
+        authContext: { env: (name) => Promise.resolve(env[name]), fileExists: () => Promise.resolve(false) },
+    });
+    models.setProvider(provider === "openai-codex" ? openaiCodexProvider() : openaiProvider());
+    return { models, provider };
+}
+
+/** Durable Pi conversation with the installation's explicitly configured model. */
 export class PiConversation {
     private readonly harness: Harness;
 
@@ -25,10 +44,9 @@ export class PiConversation {
         description: string,
         modelId: string,
     ): Promise<PiConversation> {
-        if (!process.env.OPENAI_API_KEY) throw new Error("model_not_configured");
-        const models = createModels();
-        models.setProvider(openaiProvider());
-        if (!models.getModel("openai", modelId)) throw new Error("model_not_supported");
+        const { models, provider } = createInstallationModels();
+        if (!models.getModel(provider, modelId)) throw new Error("model_not_supported");
+        if (!(await models.getAuth(provider))) throw new Error("model_not_configured");
         const harness = await Harness.open(
             await openNodeSqliteStorage(path),
             { models, registry: createRegistry() },
@@ -37,7 +55,7 @@ export class PiConversation {
         try {
             await harness.root(BACKGROUND_CONTEXT, {
                 agent: {
-                    model: { provider: "openai", modelId },
+                    model: { provider, modelId },
                     instructions: `Your name is ${name}. ${description} Reply in the user's language.`,
                     maxTurns: 4,
                 },

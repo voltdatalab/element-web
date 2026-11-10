@@ -21,6 +21,8 @@ services:
             CLAWDIA_ALLOWED_USERS: ${CLAWDIA_ALLOWED_USERS:-}
             OPENAI_API_KEY: ${OPENAI_API_KEY:-}
             PI_MODEL: ${PI_MODEL:-}
+            PI_PROVIDER: ${PI_PROVIDER:-openai}
+            PI_CODEX_ACCESS_FILE: ${PI_CODEX_ACCESS_FILE:-}
         volumes:
             - agents-data:/data
         ports:

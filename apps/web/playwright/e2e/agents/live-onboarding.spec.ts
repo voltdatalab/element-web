@@ -10,10 +10,14 @@ import { populateLocalStorageWithCredentials } from "@element-hq/element-web-pla
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
-test("creates a real Pi agent and opens its encrypted DM in the lab (faux model)", async ({ page }, testInfo) => {
+const realModel = process.env.CLAWDIA_REAL_MODEL_TEST === "1";
+
+test(`creates a Pi agent and opens its encrypted DM in the lab (${realModel ? "real" : "faux"} model)`, async ({
+    page,
+}, testInfo) => {
     test.setTimeout(120_000);
     const credentialPath = process.env.CLAWDIA_MATRIX_TEST_CREDENTIALS;
-    test.skip(!credentialPath, "Requires the dedicated Matrix/Pi laboratory with a faux model.");
+    test.skip(!credentialPath, "Requires the dedicated Matrix/Pi laboratory.");
     const credentials = JSON.parse(await readFile(credentialPath!, "utf8")) as { user_id: string; password: string };
     const homeserver = process.env.CLAWDIA_MATRIX_TEST_URL ?? "http://127.0.0.1:18008";
     const response = await fetch(`${homeserver}/_matrix/client/v3/login`, {
@@ -48,12 +52,30 @@ test("creates a real Pi agent and opens its encrypted DM in the lab (faux model)
     await expect(dialog).not.toBeVisible({ timeout: 60000 });
     await expect(page).toHaveURL(/#\/room\//);
     const composer = page.getByRole("textbox", { name: /message|send a message/i });
-    await composer.fill("Olá, Pi");
+    const marker = `validacao-${randomUUID().slice(0, 8)}`;
+    const a = 1000 + Math.floor(Math.random() * 8000);
+    const b = 1000 + Math.floor(Math.random() * 8000);
+    const prompt = realModel
+        ? `Calcule ${a} + ${b}. Responda apenas ${marker}= seguido do resultado numérico. Guarde essa soma.`
+        : "Olá, Pi";
+    await composer.fill(prompt);
     await composer.press("Enter");
-    await expect(page.getByText("Pi respondeu pela DM criptografada.", { exact: true })).toBeVisible({
-        timeout: 45000,
-    });
+    const answer = realModel ? `${marker}=${a + b}` : "Pi respondeu pela DM criptografada.";
+    await expect(page.getByText(answer, { exact: true })).toBeVisible({ timeout: 60_000 });
+    if (realModel) {
+        // A second turn checks that Pi retained the conversation, beyond a single provider request.
+        await composer.fill("Some 7 ao resultado que você guardou. Responda apenas com o novo número.");
+        await composer.press("Enter");
+        await expect(page.getByText(String(a + b + 7), { exact: true })).toBeVisible({ timeout: 60_000 });
+        await testInfo.attach("Real model transcript", {
+            body: JSON.stringify({ prompt, answer, followUpAnswer: String(a + b + 7), roomUrl: page.url() }),
+            contentType: "application/json",
+        });
+    }
     const screenshot = testInfo.outputPath("agent-dm.png");
     await page.screenshot({ path: screenshot });
-    await testInfo.attach("Encrypted DM with Pi and faux model", { path: screenshot, contentType: "image/png" });
+    await testInfo.attach(`Encrypted DM with Pi and ${realModel ? "real" : "faux"} model`, {
+        path: screenshot,
+        contentType: "image/png",
+    });
 });

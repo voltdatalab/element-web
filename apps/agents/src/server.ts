@@ -12,6 +12,7 @@ import { lock } from "proper-lockfile";
 import MatrixBotSdk from "matrix-bot-sdk";
 import { AgentStore } from "./store.ts";
 import { AgentManager } from "./matrix.ts";
+import { createInstallationModels } from "./pi.ts";
 
 /** Parse a bounded agent creation body without trusting owner identity from the browser. */
 export async function readCreation(
@@ -112,8 +113,8 @@ export async function main(): Promise<void> {
     const adminToken = process.env.MATRIX_ADMIN_TOKEN;
     const model = process.env.PI_MODEL;
     const allowed = new Set((process.env.CLAWDIA_ALLOWED_USERS ?? "").split(",").filter(Boolean));
-    if (!homeserver || !serverName || !adminToken || !model || !process.env.OPENAI_API_KEY || !allowed.size)
-        throw new Error("service_not_configured");
+    if (!homeserver || !serverName || !adminToken || !model || !allowed.size) throw new Error("service_not_configured");
+    createInstallationModels();
     const stateDir = path.resolve(process.env.CLAWDIA_STATE_DIR ?? "./state");
     await mkdir(stateDir, { recursive: true, mode: 0o700 });
     await chmod(stateDir, 0o700);

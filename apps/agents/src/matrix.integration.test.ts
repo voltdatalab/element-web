@@ -18,9 +18,10 @@ import { setTimeout as sleep } from "node:timers/promises";
 import MatrixBotSdk, { MatrixClient, SimpleFsStorageProvider, RustSdkCryptoStorageProvider } from "matrix-bot-sdk";
 
 const credentialPath = process.env.CLAWDIA_MATRIX_TEST_CREDENTIALS;
+const realModel = process.env.CLAWDIA_REAL_MODEL_TEST === "1";
 
 void test(
-    "real Synapse encrypted DM and Pi SQLite survive a process restart (faux model)",
+    `real Synapse encrypted DM and Pi SQLite survive a process restart (${realModel ? "real" : "faux"} model)`,
     { skip: !credentialPath, timeout: 120_000 },
     async () => {
         const credentials = JSON.parse(await readFile(credentialPath!, "utf8")) as {
@@ -76,8 +77,7 @@ void test(
             worker = spawn(
                 process.execPath,
                 [
-                    "--import",
-                    new URL("./fixtures/faux-model.ts", import.meta.url).pathname,
+                    ...(realModel ? [] : ["--import", new URL("./fixtures/faux-model.ts", import.meta.url).pathname]),
                     new URL("./server.ts", import.meta.url).pathname,
                 ],
                 {
@@ -91,8 +91,11 @@ void test(
                         MATRIX_ADMIN_TOKEN: credentials.access_token,
                         CLAWDIA_ALLOWED_USERS: credentials.user_id,
                         CLAWDIA_STATE_DIR: path.join(folder, "agents"),
-                        PI_MODEL: "faux-1",
-                        OPENAI_API_KEY: "integration-test-placeholder-unused-by-faux",
+                        PI_PROVIDER: realModel ? process.env.PI_PROVIDER : "openai",
+                        PI_MODEL: realModel ? process.env.PI_MODEL : "faux-1",
+                        OPENAI_API_KEY: realModel
+                            ? process.env.OPENAI_API_KEY
+                            : "integration-test-placeholder-unused-by-faux",
                     },
                     stdio: ["ignore", "ignore", "pipe"],
                 },
@@ -118,11 +121,11 @@ void test(
             worker.kill("SIGTERM");
             await exited;
         };
-        const reply = async (roomId: string, body: string): Promise<void> => {
+        const reply = async (roomId: string, body: string, expected: string): Promise<void> => {
             const eventId = await owner.sendMessage(roomId, { msgtype: "m.text", body });
-            for (let i = 0; i < 300; i++) {
+            for (let i = 0; i < 600; i++) {
                 if (responses.has(eventId)) {
-                    assert.equal(responses.get(eventId), "Pi respondeu pela DM criptografada.");
+                    assert.equal(responses.get(eventId), expected);
                     return;
                 }
                 await sleep(100);
@@ -153,11 +156,26 @@ void test(
                 (await owner.getRoomStateEvent(agent.roomId, "m.room.encryption", "")).algorithm,
                 "m.megolm.v1.aes-sha2",
             );
-            await reply(agent.roomId, "Olá, Pi");
+            const a = 1000 + Math.floor(Math.random() * 8000);
+            const b = 1000 + Math.floor(Math.random() * 8000);
+            const marker = `reinicio-${randomUUID().slice(0, 8)}`;
+            await reply(
+                agent.roomId,
+                realModel
+                    ? `Calcule ${a} + ${b}. Responda apenas ${marker}= seguido da soma. Guarde essa soma.`
+                    : "Olá, Pi",
+                realModel ? `${marker}=${a + b}` : "Pi respondeu pela DM criptografada.",
+            );
             await stop();
             await start();
             assert.deepEqual(await (await create()).json(), agent);
-            await reply(agent.roomId, "Voltamos depois do reinício");
+            await reply(
+                agent.roomId,
+                realModel
+                    ? "Some 7 à soma que você guardou antes. Responda apenas com o novo número."
+                    : "Voltamos depois do reinício",
+                realModel ? String(a + b + 7) : "Pi respondeu pela DM criptografada.",
+            );
         } finally {
             await stop();
             owner.off("room.message", onMessage);
