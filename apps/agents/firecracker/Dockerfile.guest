@@ -1,0 +1,7 @@
+# Copyright 2026 Volt Data Lab
+# SPDX-License-Identifier: AGPL-3.0-only
+FROM alpine:3.23.2
+RUN apk add --no-cache python3 && mkdir -p /workspace /run /tmp /dev /proc /sys
+COPY guest.py /guest.py
+COPY init.sh /init
+RUN chmod 0755 /init && chmod 0644 /guest.py

@@ -1,0 +1,9 @@
+# Copyright 2026 Volt Data Lab
+# SPDX-License-Identifier: AGPL-3.0-only
+# Explicit lab override. Install the host worker before enabling this file.
+services:
+    agents:
+        environment:
+            CLAWDIA_FIRECRACKER_SOCKET: /run/clawdia-firecracker-lab/worker.sock
+        volumes:
+            - /run/clawdia-firecracker-lab:/run/clawdia-firecracker-lab:ro
