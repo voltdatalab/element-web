@@ -10,6 +10,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { MatrixClient, SimpleFsStorageProvider, RustSdkCryptoStorageProvider } from "matrix-bot-sdk";
 import type { AgentStore, Agent } from "./store.ts";
+import { FirecrackerMachine } from "./FirecrackerMachine.ts";
 import { PiConversation } from "./pi.ts";
 
 /** Settings kept exclusively in the trusted service. */
@@ -136,11 +137,16 @@ export class AgentManager {
                 this.store.room(agent.id, roomId);
                 agent = this.store.get(agent.id)!;
             }
+            const machine = process.env.CLAWDIA_FIRECRACKER_SOCKET
+                ? new FirecrackerMachine(process.env.CLAWDIA_FIRECRACKER_SOCKET, agent.id)
+                : undefined;
+            if (machine) await machine.ensure();
             const conversation = await PiConversation.open(
                 path.join(folder, "pi.sqlite"),
                 agent.name,
                 agent.description,
                 this.config.model,
+                machine ? { machine, record: (id, file) => this.store.artifact(agent.id, id, file) } : undefined,
             );
             this.conversations.set(agent.id, conversation);
             // Admission is synchronous, so a persisted sync cursor cannot overtake the inbox insert.
@@ -214,6 +220,33 @@ export class AgentManager {
                 if (this.closing) break;
                 const audience = await bot.getJoinedRoomMembers(agent.room_id!);
                 if (!audience.includes(agent.owner) || audience.some((member) => !members.includes(member))) break;
+                for (const artifact of this.store.pendingArtifacts(agent.id)) {
+                    let media = artifact.media_json;
+                    if (!media) {
+                        const encryptedFile = await bot.crypto.encryptMedia(Buffer.from(artifact.content));
+                        const url = await bot.uploadContent(encryptedFile.buffer, "application/octet-stream");
+                        media = JSON.stringify({ ...encryptedFile.file, url });
+                        this.store.artifactMedia(agent.id, artifact.id, media);
+                    }
+                    // Recheck the audience immediately before each artifact publication too.
+                    const viewers = await bot.getJoinedRoomMembers(agent.room_id!);
+                    if (!viewers.includes(agent.owner) || viewers.some((member) => !members.includes(member))) return;
+                    const fileEvent = await bot.crypto.encryptRoomEvent(agent.room_id!, "m.room.message", {
+                        "msgtype": "m.file",
+                        "body": path.posix.basename(artifact.path),
+                        "file": JSON.parse(media),
+                        "info": { mimetype: "text/plain", size: Buffer.byteLength(artifact.content) },
+                        "m.relates_to": { "m.in_reply_to": { event_id: message.event_id } },
+                    });
+                    const fileTxn = createHash("sha256").update(`${agent.id}:${artifact.id}`).digest("hex");
+                    await bot.doRequest(
+                        "PUT",
+                        `/_matrix/client/v3/rooms/${encodeURIComponent(agent.room_id!)}/send/m.room.encrypted/${fileTxn}`,
+                        null,
+                        fileEvent,
+                    );
+                    this.store.artifactDelivered(agent.id, artifact.id);
+                }
                 const transaction = createHash("sha256").update(message.event_id).digest("hex");
                 const encrypted = await bot.crypto.encryptRoomEvent(agent.room_id!, "m.room.message", {
                     "msgtype": "m.text",

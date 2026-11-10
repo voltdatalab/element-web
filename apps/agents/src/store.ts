@@ -7,6 +7,7 @@ Please see LICENSE in the repository root for full details.
 
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
+import type { MachineArtifact } from "./MachineArtifact.ts";
 
 /** Persisted provisioning operation. Secrets are confined to the private service state directory. */
 export interface Agent {
@@ -34,6 +35,11 @@ export class AgentStore {
                 name TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL,
                 password TEXT NOT NULL, bot_token TEXT, room_id TEXT,
                 UNIQUE(owner, request_key)
+            );
+            CREATE TABLE IF NOT EXISTS artifacts (
+                id TEXT NOT NULL, agent_id TEXT NOT NULL, path TEXT NOT NULL,
+                content TEXT NOT NULL, sha256 TEXT NOT NULL, media_json TEXT,
+                delivered INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(agent_id,id)
             );
             CREATE TABLE IF NOT EXISTS messages (
                 event_id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, body TEXT NOT NULL,
@@ -93,6 +99,32 @@ export class AgentStore {
 
     public answer(eventId: string, answer: string): void {
         this.database.prepare("UPDATE messages SET answer = ? WHERE event_id = ?").run(answer, eventId);
+    }
+
+    public artifact(agentId: string, id: string, file: MachineArtifact): void {
+        const old = this.database
+            .prepare("SELECT sha256,path FROM artifacts WHERE agent_id=? AND id=?")
+            .get(agentId, id);
+        if (old && (old.sha256 !== file.sha256 || old.path !== file.path)) throw new Error("artifact_conflict");
+        this.database
+            .prepare("INSERT OR IGNORE INTO artifacts (id,agent_id,path,content,sha256) VALUES (?,?,?,?,?)")
+            .run(id, agentId, file.path, file.content, file.sha256);
+    }
+
+    public pendingArtifacts(agentId: string): (MachineArtifact & { id: string; media_json: string | null })[] {
+        return this.database
+            .prepare(
+                "SELECT id,path,content,sha256,media_json FROM artifacts WHERE agent_id=? AND delivered=0 ORDER BY rowid",
+            )
+            .all(agentId) as unknown as (MachineArtifact & { id: string; media_json: string | null })[];
+    }
+
+    public artifactMedia(agentId: string, id: string, media: string): void {
+        this.database.prepare("UPDATE artifacts SET media_json=? WHERE agent_id=? AND id=?").run(media, agentId, id);
+    }
+
+    public artifactDelivered(agentId: string, id: string): void {
+        this.database.prepare("UPDATE artifacts SET delivered=1,content='' WHERE agent_id=? AND id=?").run(agentId, id);
     }
 
     public delivered(eventId: string): void {

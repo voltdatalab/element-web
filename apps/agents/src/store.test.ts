@@ -50,3 +50,26 @@ void test("partial provisioning and admitted messages survive a service restart"
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+void test("artifact outbox survives reopening and never republishes a replayed call", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "clawdia-artifacts-"));
+    const file = { path: "report.txt", content: "Persisted file", sha256: "verified-in-client" };
+    let store = new AgentStore(path.join(dir, "agents.sqlite"));
+    try {
+        store.artifact("agent-1", "call-1", file);
+        store.artifact("agent-1", "call-1", file);
+        assert.deepEqual(store.pendingArtifacts("agent-2"), []);
+        assert.equal(store.pendingArtifacts("agent-1").length, 1);
+        assert.throws(() => store.artifact("agent-1", "call-1", { ...file, sha256: "changed" }), /artifact_conflict/);
+        store.artifactMedia("agent-1", "call-1", '{"url":"mxc://lab/file"}');
+        store.close();
+        store = new AgentStore(path.join(dir, "agents.sqlite"));
+        assert.equal(store.pendingArtifacts("agent-1")[0].media_json, '{"url":"mxc://lab/file"}');
+        store.artifactDelivered("agent-1", "call-1");
+        store.artifact("agent-1", "call-1", file);
+        assert.deepEqual(store.pendingArtifacts("agent-1"), []);
+    } finally {
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+    }
+});

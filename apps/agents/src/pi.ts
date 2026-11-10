@@ -11,6 +11,9 @@ import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-code
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
 import { AssistantEntry, createRegistry, Harness } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
+import { createMachineTools } from "./machineTools.ts";
+import type { FirecrackerMachine } from "./FirecrackerMachine.ts";
+import type { MachineArtifact } from "./MachineArtifact.ts";
 import { CodexAccessCredentials } from "./CodexAccessCredentials.ts";
 
 /** Resolve only the installation's explicitly selected provider and private credentials. */
@@ -43,21 +46,24 @@ export class PiConversation {
         name: string,
         description: string,
         modelId: string,
+        workspace?: { machine: FirecrackerMachine; record: (callId: string, file: MachineArtifact) => void },
     ): Promise<PiConversation> {
         const { models, provider } = createInstallationModels();
         if (!models.getModel(provider, modelId)) throw new Error("model_not_supported");
         if (!(await models.getAuth(provider))) throw new Error("model_not_configured");
-        const harness = await Harness.open(
-            await openNodeSqliteStorage(path),
-            { models, registry: createRegistry() },
-            BACKGROUND_CONTEXT,
-        );
+        const registry = createRegistry();
+        if (workspace) registry.install(createMachineTools(workspace.machine, workspace.record));
+        const harness = await Harness.open(await openNodeSqliteStorage(path), { models, registry }, BACKGROUND_CONTEXT);
         try {
             await harness.root(BACKGROUND_CONTEXT, {
                 agent: {
                     model: { provider, modelId },
-                    instructions: `Your name is ${name}. ${description} Reply in the user's language.`,
-                    maxTurns: 4,
+                    instructions:
+                        `Your name is ${name}. ${description} Reply in the user's language. ` +
+                        (workspace
+                            ? "Use the provided tools for all files and machine operations. Never claim a file was created or read without a successful tool result. File tools automatically attach the actual file to the DM. Your workspace is private to you and persists across machine restarts."
+                            : ""),
+                    maxTurns: workspace ? 8 : 4,
                 },
             });
             harness.resume();

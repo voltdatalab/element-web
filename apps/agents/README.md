@@ -68,3 +68,9 @@ NODE_ENV=test PI_MODEL=faux-1 OPENAI_API_KEY=integration-fixture-unused node --i
 ```
 
 A fixture exige `NODE_ENV=test`. O comando normal do serviço usa o provider configurado no código, e a prova com modelo real precisa ser registrada separadamente.
+
+## Workspace Firecracker por agente
+
+A fatia seguinte está em `firecracker/`, vinculada às issues [#167](https://github.com/fmercurio/claw-tenant/issues/167) e [#145](https://github.com/fmercurio/claw-tenant/issues/145). O [README do worker](./firecracker/README.md) descreve instalação, recursos, isolamento, persistência e aceite pelo navegador.
+
+O override `compose.firecracker.yaml` conecta o container sem privilégios ao socket do worker host. A variável `CLAWDIA_FIRECRACKER_SOCKET` ativa o provisionamento de uma máquina por cadastro e as ferramentas Pi de arquivo e reinício. A configuração base preserva a execução da primeira fatia. O worker deve ser instalado e validado antes de ativar esse override.

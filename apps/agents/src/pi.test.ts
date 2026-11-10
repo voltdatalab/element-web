@@ -12,9 +12,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
-import { fauxProvider, fauxAssistantMessage } from "@earendil-works/pi-ai/providers/faux";
+import { fauxProvider, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { Harness, createRegistry } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
+import { createMachineTools } from "./machineTools.ts";
+import type { FirecrackerMachine } from "./FirecrackerMachine.ts";
+import type { MachineArtifact } from "./MachineArtifact.ts";
 import { CodexAccessCredentials } from "./CodexAccessCredentials.ts";
 import { PiConversation, createInstallationModels } from "./pi.ts";
 
@@ -95,4 +98,43 @@ void test("keeps API-key support and rejects missing or unknown provider configu
         /model_not_configured/,
     );
     assert.throws(() => createInstallationModels({ PI_PROVIDER: "unknown" }), /model_provider_not_supported/);
+});
+
+void test("Pi invokes the bound workspace tools and records the real artifact once", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "clawdia-tools-"));
+    const models = createModels();
+    const faux = fauxProvider();
+    faux.setResponses([
+        fauxAssistantMessage(fauxToolCall("write_file", { path: "report.txt", content: "From Pi" }), {
+            stopReason: "toolUse",
+        }),
+        fauxAssistantMessage("Arquivo pronto."),
+    ]);
+    models.setProvider(faux.provider);
+    const calls: string[] = [];
+    const artifacts: MachineArtifact[] = [];
+    const machine = {
+        file: async (op: string, id: string, path: string, content: string) => {
+            calls.push(`${op}:${path}`);
+            return { path, content, sha256: "verified-by-machine-client" };
+        },
+    } as unknown as FirecrackerMachine;
+    const registry = createRegistry();
+    registry.install(createMachineTools(machine, (_id, file) => artifacts.push(file)));
+    const harness = await Harness.open(
+        await openNodeSqliteStorage(path.join(dir, "pi.sqlite")),
+        { models, registry },
+        BACKGROUND_CONTEXT,
+    );
+    try {
+        await harness.root(BACKGROUND_CONTEXT, { agent: { model: { provider: "faux", modelId: "faux-1" } } });
+        const conversation = new PiConversation(harness);
+        assert.equal(await conversation.reply("$files", "Crie um arquivo"), "Arquivo pronto.");
+        assert.equal(await conversation.reply("$files", "Crie um arquivo"), "Arquivo pronto.");
+        assert.deepEqual(calls, ["write:report.txt"]);
+        assert.equal(artifacts[0].content, "From Pi");
+    } finally {
+        await harness.close(BACKGROUND_CONTEXT);
+        rmSync(dir, { recursive: true, force: true });
+    }
 });

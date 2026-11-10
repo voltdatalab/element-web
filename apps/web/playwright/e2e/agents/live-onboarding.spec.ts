@@ -8,14 +8,16 @@ Please see LICENSE in the repository root for full details.
 import { test, expect } from "@playwright/test";
 import { populateLocalStorageWithCredentials } from "@element-hq/element-web-playwright-common";
 import { readFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 
+const machineTest = process.env.CLAWDIA_FIRECRACKER_TEST === "1";
 const realModel = process.env.CLAWDIA_REAL_MODEL_TEST === "1";
 
 test(`creates a Pi agent and opens its encrypted DM in the lab (${realModel ? "real" : "faux"} model)`, async ({
     page,
 }, testInfo) => {
-    test.setTimeout(120_000);
+    test.setTimeout(machineTest ? 300_000 : 120_000);
+    test.skip(machineTest && !realModel, "The Firecracker DM scenario requires a real model.");
     const credentialPath = process.env.CLAWDIA_MATRIX_TEST_CREDENTIALS;
     test.skip(!credentialPath, "Requires the dedicated Matrix/Pi laboratory.");
     const credentials = JSON.parse(await readFile(credentialPath!, "utf8")) as { user_id: string; password: string };
@@ -46,12 +48,63 @@ test(`creates a Pi agent and opens its encrypted DM in the lab (${realModel ? "r
     await page.getByRole("navigation", { name: "Room list" }).getByRole("button", { name: "New", exact: true }).click();
     await page.getByRole("menuitem", { name: "Create agent" }).click();
     const dialog = page.getByRole("dialog", { name: "Create agent" });
-    await dialog.getByLabel("Name", { exact: true }).fill("Analista Pi de validação");
+    await dialog
+        .getByLabel("Name", { exact: true })
+        .fill(machineTest ? "Agente com microVM" : "Analista Pi de validação");
     await dialog.getByLabel("Description (optional)").fill("Agente de validação do onboarding nativo");
+    const provisioned = page.waitForResponse(
+        (response) => response.url().endsWith("/clawdia/agents") && response.request().method() === "POST",
+    );
     await dialog.getByRole("button", { name: "Create agent" }).click();
+    const agent = (await (await provisioned).json()) as { id: string; roomId: string };
     await expect(dialog).not.toBeVisible({ timeout: 60000 });
     await expect(page).toHaveURL(/#\/room\//);
     const composer = page.getByRole("textbox", { name: /message|send a message/i });
+    if (machineTest) {
+        const filename = `prova-${randomUUID().slice(0, 8)}.txt`;
+        const content = `Arquivo persistente ClawdIA ${randomUUID()}\n`;
+        const sha256 = createHash("sha256").update(content).digest("hex");
+        const download = async (): Promise<string> => {
+            const links = page.getByRole("button", { name: new RegExp("^" + filename.replaceAll(".", "\\.")) });
+            const event = page.waitForEvent("download");
+            await links.last().click();
+            const file = await event;
+            return readFile((await file.path())!, "utf8");
+        };
+        await composer.fill(
+            `Crie na sua microVM o arquivo ${filename}, usando write_file. O conteúdo exato deve ser esta string JSON: ${JSON.stringify(content)}. Depois responda apenas arquivo-criado.`,
+        );
+        await composer.press("Enter");
+        await expect(page.getByText("arquivo-criado", { exact: true })).toBeVisible({ timeout: 90_000 });
+        await expect(page.getByRole("button", { name: new RegExp("^" + filename.replaceAll(".", "\\.")) })).toHaveCount(
+            1,
+        );
+        expect(await download()).toBe(content);
+        const roomUrl = page.url();
+        await composer.fill(
+            "Reinicie agora sua microVM usando restart_machine. Depois responda apenas maquina-reiniciada e informe o novo bootId.",
+        );
+        await composer.press("Enter");
+        await expect(page.getByText(/^maquina-reiniciada/)).toBeVisible({ timeout: 90_000 });
+        await composer.fill(
+            `Recupere do disco da microVM o arquivo ${filename} usando read_file. Não o recrie. Responda apenas arquivo-recuperado.`,
+        );
+        await composer.press("Enter");
+        await expect(page.getByText("arquivo-recuperado", { exact: true })).toBeVisible({ timeout: 90_000 });
+        await expect(page.getByRole("button", { name: new RegExp("^" + filename.replaceAll(".", "\\.")) })).toHaveCount(
+            2,
+        );
+        expect(await download()).toBe(content);
+        expect(page.url()).toBe(roomUrl);
+        const screenshot = testInfo.outputPath("firecracker-dm.png");
+        await page.screenshot({ path: screenshot });
+        await testInfo.attach("Firecracker file after VM restart", { path: screenshot, contentType: "image/png" });
+        await testInfo.attach("Firecracker validation", {
+            body: JSON.stringify({ agentId: agent.id, roomId: agent.roomId, filename, sha256 }),
+            contentType: "application/json",
+        });
+        return;
+    }
     const marker = `validacao-${randomUUID().slice(0, 8)}`;
     const a = 1000 + Math.floor(Math.random() * 8000);
     const b = 1000 + Math.floor(Math.random() * 8000);
