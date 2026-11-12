@@ -10,6 +10,7 @@ import secrets
 import signal
 import socket
 import socketserver
+import stat
 import sqlite3
 import struct
 import subprocess
@@ -28,6 +29,28 @@ def identity(value):
     if not isinstance(value, str) or str(uuid.UUID(value)) != value:
         raise ValueError('invalid_agent')
     return value
+
+
+def reset_jail_devices(root, cgroup):
+    # Jailer creates these nodes exclusively, so a stopped jail needs fresh ones.
+    processes = cgroup / 'cgroup.procs'
+    if processes.exists() and processes.read_text().strip():
+        raise ValueError('machine_still_running')
+    devices = [('dev/net/tun', 10, 200), ('dev/kvm', 10, 232), ('dev/urandom', 1, 9)]
+    present = []
+    for relative, major, minor in devices:
+        path = root / relative
+        if any(parent.is_symlink() for parent in (root / 'dev', root / 'dev/net')):
+            raise ValueError('unexpected_jail_device')
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            continue
+        if not stat.S_ISCHR(info.st_mode) or info.st_rdev != os.makedev(major, minor):
+            raise ValueError('unexpected_jail_device')
+        present.append(path)
+    for path in present:
+        path.unlink()
 
 
 class Worker:
@@ -130,6 +153,7 @@ class Worker:
         agent = row['id']
         root = self.root(agent)
         root.mkdir(parents=True, exist_ok=True)
+        reset_jail_devices(root, CGROUP / agent)
         uid = 300000 + row['sequence']
         os.chown(root, uid, uid)
         for name in ('vmlinux', 'rootfs.ext4'):
@@ -206,7 +230,11 @@ class Worker:
                 time.sleep(0.1)
             if self.alive(row):
                 os.kill(row['pid'], signal.SIGKILL)
-                raise ValueError('machine_stop_uncertain')
+                deadline = time.monotonic() + 2
+                while self.alive(row) and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                if self.alive(row):
+                    raise ValueError('machine_stop_uncertain')
         self.db.execute("UPDATE machines SET desired='stopped',observed='stopped',pid=NULL,process_start=NULL WHERE id=?", (agent,))
         self.db.commit()
 

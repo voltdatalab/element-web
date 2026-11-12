@@ -2,6 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 from pathlib import Path
 import tempfile
+import os
+import stat
+import signal
+from types import SimpleNamespace
+from unittest.mock import patch
 import unittest
 import uuid
 import worker
@@ -75,6 +80,30 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(result['generation'], target)
         self.assertEqual(self.w.restart(self.agent, 'interrupted'), result)
 
+    def test_stop_confirms_exit_after_sigkill_before_recording_stopped(self):
+        self.w.ensure(self.agent)
+        self.w.db.execute('UPDATE machines SET pid=123 WHERE id=?', (self.agent,))
+        self.w.db.commit()
+        def kill(pid, sig):
+            self.assertEqual(pid, 123)
+            if sig == signal.SIGKILL:
+                self.w.running.discard(self.agent)
+        with patch('worker.os.kill', side_effect=kill) as send, patch('worker.time.monotonic', side_effect=[0, 11, 11]):
+            worker.Worker.stop(self.w, self.agent)
+        self.assertEqual([call.args[1] for call in send.call_args_list], [signal.SIGTERM, signal.SIGKILL])
+        self.assertEqual(self.w.get(self.agent)['observed'], 'stopped')
+        self.assertIsNone(self.w.get(self.agent)['pid'])
+
+    def test_stop_keeps_uncertainty_when_sigkill_has_not_quiesced(self):
+        self.w.ensure(self.agent)
+        self.w.db.execute('UPDATE machines SET pid=123 WHERE id=?', (self.agent,))
+        self.w.db.commit()
+        with patch('worker.os.kill'), patch('worker.time.monotonic', side_effect=[0, 11, 11, 14]):
+            with self.assertRaisesRegex(ValueError, 'machine_stop_uncertain'):
+                worker.Worker.stop(self.w, self.agent)
+        self.assertEqual(self.w.get(self.agent)['pid'], 123)
+        self.assertEqual(self.w.get(self.agent)['observed'], 'ready')
+
     def test_invalid_id_and_operation_cannot_provision_and_capacity_is_bounded(self):
         for request in [
             {'agentId': '../host', 'op': 'ensure', 'requestId': 'x'},
@@ -88,6 +117,47 @@ class WorkerTests(unittest.TestCase):
             self.w.ensure(str(uuid.uuid4()))
         with self.assertRaises(ValueError):
             self.w.ensure(self.agent)
+
+
+class JailDeviceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name) / 'root'
+        self.cgroup = Path(self.temp.name) / 'cgroup'
+        (self.root / 'dev/net').mkdir(parents=True)
+        self.cgroup.mkdir()
+        (self.cgroup / 'cgroup.procs').write_text('')
+
+    def test_live_cgroup_blocks_all_device_removal(self):
+        (self.cgroup / 'cgroup.procs').write_text('123\n')
+        with patch.object(Path, 'unlink') as unlink, self.assertRaisesRegex(ValueError, 'machine_still_running'):
+            worker.reset_jail_devices(self.root, self.cgroup)
+        unlink.assert_not_called()
+
+    def test_unexpected_regular_file_and_symlink_are_preserved(self):
+        tun = self.root / 'dev/net/tun'
+        tun.write_text('foreign')
+        with self.assertRaisesRegex(ValueError, 'unexpected_jail_device'):
+            worker.reset_jail_devices(self.root, self.cgroup)
+        self.assertEqual(tun.read_text(), 'foreign')
+        tun.unlink()
+        tun.symlink_to(self.root / 'workspace.ext4')
+        with self.assertRaisesRegex(ValueError, 'unexpected_jail_device'):
+            worker.reset_jail_devices(self.root, self.cgroup)
+        self.assertTrue(tun.is_symlink())
+
+    def test_only_expected_character_devices_are_removed(self):
+        original = Path.lstat
+        nodes = {self.root / name: (major, minor) for name, major, minor in
+                 [('dev/net/tun', 10, 200), ('dev/kvm', 10, 232), ('dev/urandom', 1, 9)]}
+        def lstat(path):
+            if path in nodes:
+                return SimpleNamespace(st_mode=stat.S_IFCHR | 0o600, st_rdev=os.makedev(*nodes[path]))
+            return original(path)
+        with patch.object(Path, 'lstat', lstat), patch.object(Path, 'unlink', autospec=True) as unlink:
+            worker.reset_jail_devices(self.root, self.cgroup)
+        self.assertEqual({call.args[0] for call in unlink.call_args_list}, set(nodes))
 
 
 if __name__ == '__main__':

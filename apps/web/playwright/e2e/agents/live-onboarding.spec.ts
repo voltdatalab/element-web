@@ -64,10 +64,10 @@ test(`creates a Pi agent and opens its encrypted DM in the lab (${realModel ? "r
         const filename = `prova-${randomUUID().slice(0, 8)}.txt`;
         const content = `Arquivo persistente ClawdIA ${randomUUID()}\n`;
         const sha256 = createHash("sha256").update(content).digest("hex");
+        const fileEvents = page.getByRole("listitem").filter({ has: page.getByText(filename, { exact: true }) });
         const download = async (): Promise<string> => {
-            const links = page.getByRole("button", { name: new RegExp("^" + filename.replaceAll(".", "\\.")) });
             const event = page.waitForEvent("download");
-            await links.last().click();
+            await fileEvents.last().getByRole("button", { name: "Download", exact: true }).first().click();
             const file = await event;
             return readFile((await file.path())!, "utf8");
         };
@@ -76,9 +76,7 @@ test(`creates a Pi agent and opens its encrypted DM in the lab (${realModel ? "r
         );
         await composer.press("Enter");
         await expect(page.getByText("arquivo-criado", { exact: true })).toBeVisible({ timeout: 90_000 });
-        await expect(page.getByRole("button", { name: new RegExp("^" + filename.replaceAll(".", "\\.")) })).toHaveCount(
-            1,
-        );
+        await expect(fileEvents).toHaveCount(1);
         expect(await download()).toBe(content);
         const roomUrl = page.url();
         await composer.fill(
@@ -91,9 +89,7 @@ test(`creates a Pi agent and opens its encrypted DM in the lab (${realModel ? "r
         );
         await composer.press("Enter");
         await expect(page.getByText("arquivo-recuperado", { exact: true })).toBeVisible({ timeout: 90_000 });
-        await expect(page.getByRole("button", { name: new RegExp("^" + filename.replaceAll(".", "\\.")) })).toHaveCount(
-            2,
-        );
+        await expect(fileEvents).toHaveCount(2);
         expect(await download()).toBe(content);
         expect(page.url()).toBe(roomUrl);
         const screenshot = testInfo.outputPath("firecracker-dm.png");
