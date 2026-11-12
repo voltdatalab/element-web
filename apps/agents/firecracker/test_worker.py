@@ -104,6 +104,29 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(self.w.get(self.agent)['pid'], 123)
         self.assertEqual(self.w.get(self.agent)['observed'], 'ready')
 
+    def test_retired_identity_stays_retired_and_frees_capacity_after_reopen(self):
+        identities = [self.agent] + [str(uuid.uuid4()) for _ in range(worker.MAX_MACHINES - 1)]
+        for identity in identities:
+            self.w.ensure(identity)
+        self.w.stop(self.agent)
+        with self.w.db:
+            self.w.db.execute('INSERT INTO retired_machines VALUES (?,?,?,?)',
+                              (self.agent, '2026-11-11T00:00:00Z', '/private/archive', 'verified-manifest'))
+            self.w.db.execute('DELETE FROM machines WHERE id=?', (self.agent,))
+        boots = self.w.boots
+        for op in ['ensure', 'read', 'write', 'restart']:
+            with self.subTest(op=op), self.assertRaises(ValueError):
+                self.w.handle({'agentId': self.agent, 'op': op, 'requestId': 'old-request', 'path': 'old.txt'})
+        self.assertEqual(self.w.boots, boots)
+        new_identity = str(uuid.uuid4())
+        self.assertEqual(self.w.ensure(new_identity)['agentId'], new_identity)
+        self.assertEqual(self.w.db.execute('SELECT COUNT(*) FROM machines').fetchone()[0], worker.MAX_MACHINES)
+        reopened = FakeWorker()
+        self.addCleanup(reopened.db.close)
+        with self.assertRaisesRegex(ValueError, 'machine_retired'):
+            reopened.ensure(self.agent)
+        self.assertEqual(reopened.boots, 0)
+
     def test_invalid_id_and_operation_cannot_provision_and_capacity_is_bounded(self):
         for request in [
             {'agentId': '../host', 'op': 'ensure', 'requestId': 'x'},

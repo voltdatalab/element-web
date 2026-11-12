@@ -68,6 +68,10 @@ class Worker:
             CREATE TABLE IF NOT EXISTS restarts (
                 agent TEXT, request TEXT, generation TEXT, result TEXT, PRIMARY KEY(agent,request)
             );
+            CREATE TABLE IF NOT EXISTS retired_machines (
+                id TEXT PRIMARY KEY, retired_at TEXT NOT NULL,
+                archive_path TEXT NOT NULL, manifest_sha256 TEXT NOT NULL
+            );
         ''')
         self.db.row_factory = sqlite3.Row
 
@@ -121,6 +125,8 @@ class Worker:
             return result
 
     def ensure(self, agent):
+        if self.db.execute('SELECT 1 FROM retired_machines WHERE id=?', (identity(agent),)).fetchone():
+            raise ValueError('machine_retired')
         row = self.get(agent)
         if not row:
             if self.db.execute('SELECT COUNT(*) FROM machines').fetchone()[0] >= MAX_MACHINES:
