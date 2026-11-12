@@ -19,7 +19,7 @@ import { createMachineTools } from "./machineTools.ts";
 import type { FirecrackerMachine } from "./FirecrackerMachine.ts";
 import type { MachineArtifact } from "./MachineArtifact.ts";
 import { CodexAccessCredentials } from "./CodexAccessCredentials.ts";
-import { PiConversation, createInstallationModels } from "./pi.ts";
+import { PiConversation, createInstallationModels, guardRoomModels } from "./pi.ts";
 
 void test("real Pi storage deduplicates the Matrix event across reopening", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "clawdia-pi-"));
@@ -138,3 +138,160 @@ void test("Pi invokes the bound workspace tools and records the real artifact on
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+void test("room models deny dispatch and deferred recovery even when a Pi extension error would be ignored", async () => {
+    const models = createModels();
+    const faux = fauxProvider();
+    models.setProvider(faux.provider);
+    faux.setResponses([fauxAssistantMessage("allowed")]);
+    let allowed = true;
+    guardRoomModels(models, async () => {
+        if (!allowed) throw new Error("room_revoked");
+    });
+    assert.equal((await models.completeSimple(faux.getModel(), { messages: [] })).stopReason, "stop");
+    assert.equal(faux.state.callCount, 1);
+    allowed = false;
+    const denied = await models.completeSimple(faux.getModel(), { messages: [] });
+    assert.equal(denied.stopReason, "error");
+    assert.match(denied.errorMessage ?? "", /room_revoked/);
+    assert.equal(faux.state.callCount, 1);
+    const deferred = await models.fetchDeferred(faux.getModel(), {
+        id: "held",
+        provider: "faux",
+        modelId: "faux-1",
+        api: faux.api,
+    });
+    assert.equal(deferred.stopReason, "error");
+    assert.equal(faux.state.deferredFetchCount, 0);
+});
+
+void test("real Pi SQLite keeps the DM sentinel and machine tools out of the room conversation", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "clawdia-room-pi-"));
+    const models = createModels();
+    const faux = fauxProvider();
+    models.setProvider(faux.provider);
+    const inputs: string[] = [];
+    let allowed = true;
+    const authorize = async () => {
+        if (!allowed) throw new Error("room_revoked");
+    };
+    const open = async (file: string, registry: ReturnType<typeof createRegistry>) => {
+        const harness = await Harness.open(
+            await openNodeSqliteStorage(path.join(dir, file)),
+            { models, registry },
+            BACKGROUND_CONTEXT,
+        );
+        await harness.root(BACKGROUND_CONTEXT, { agent: { model: { provider: "faux", modelId: "faux-1" } } });
+        return harness;
+    };
+    const privateRegistry = createRegistry();
+    privateRegistry.install(createMachineTools({} as FirecrackerMachine, () => {}));
+    const privateHarness = await open("private.sqlite", privateRegistry);
+    let roomHarness: Harness | undefined;
+    try {
+        faux.setResponses([fauxAssistantMessage("private answer")]);
+        await new PiConversation(privateHarness).reply("$dm", "PRIVATE_SENTINEL");
+        const roomRegistry = createRegistry();
+        assert.equal(roomRegistry.snapshot().tools().length, 0);
+        guardRoomModels(models, authorize);
+        faux.setResponses([
+            (context) => {
+                inputs.push(JSON.stringify(context));
+                return fauxAssistantMessage("Resposta da sala");
+            },
+        ]);
+        roomHarness = await open("room.sqlite", roomRegistry);
+        const conversation = new PiConversation(roomHarness, authorize);
+        assert.equal(
+            await conversation.reply("$room", "Solicitante Matrix: @b:test\nPergunta compartilhada"),
+            "Resposta da sala",
+        );
+        assert.ok(inputs.every((input) => !input.includes("PRIVATE_SENTINEL")));
+        const root = await roomHarness.root(BACKGROUND_CONTEXT);
+        assert.ok(!JSON.stringify(await root.context(BACKGROUND_CONTEXT)).includes("PRIVATE_SENTINEL"));
+        const count = faux.state.callCount;
+        allowed = false;
+        await conversation.abort();
+        await assert.rejects(conversation.reply("$denied", "new input"), /room_revoked/);
+        assert.equal(faux.state.callCount, count);
+    } finally {
+        await roomHarness?.close(BACKGROUND_CONTEXT);
+        await privateHarness.close(BACKGROUND_CONTEXT);
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+void test("a provider payload retry is denied after revocation instead of relying on a Pi hook exception", async () => {
+    const models = createModels();
+    const faux = fauxProvider();
+    models.setProvider(faux.provider);
+    let allowed = true;
+    let sent = 0;
+    guardRoomModels(models, async () => {
+        if (!allowed) throw new Error("room_revoked");
+    });
+    faux.setResponses([
+        async (_context, options) => {
+            allowed = false;
+            await options?.onPayload?.({ retry: true }, faux.getModel());
+            sent += 1;
+            return fauxAssistantMessage("must not send");
+        },
+    ]);
+    const answer = await models.completeSimple(faux.getModel(), { messages: [] });
+    assert.equal(answer.stopReason, "error");
+    assert.equal(sent, 0);
+});
+
+void test(
+    "real Pi abort cancels an in-flight shared turn and cannot dispatch a later input",
+    { timeout: 5000 },
+    async () => {
+        const dir = mkdtempSync(path.join(tmpdir(), "clawdia-revoke-pi-"));
+        const models = createModels();
+        const faux = fauxProvider();
+        models.setProvider(faux.provider);
+        let entered!: () => void;
+        const started = new Promise<void>((done) => {
+            entered = done;
+        });
+        let allowed = true;
+        const authorize = async () => {
+            if (!allowed) throw new Error("room_revoked");
+        };
+        guardRoomModels(models, authorize);
+        faux.setResponses([
+            async (_context, options) => {
+                entered();
+                await new Promise<void>((_resolve, reject) => {
+                    const signal = options!.signal!;
+                    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                    if (signal.aborted) reject(signal.reason);
+                });
+                return fauxAssistantMessage("must not finish");
+            },
+        ]);
+        const harness = await Harness.open(
+            await openNodeSqliteStorage(path.join(dir, "room.sqlite")),
+            { models, registry: createRegistry() },
+            BACKGROUND_CONTEXT,
+        );
+        try {
+            await harness.root(BACKGROUND_CONTEXT, { agent: { model: { provider: "faux", modelId: "faux-1" } } });
+            const conversation = new PiConversation(harness, authorize);
+            const outcome = conversation.reply("$pending", "Pending turn").then(
+                () => "answered",
+                () => "blocked",
+            );
+            await started;
+            allowed = false;
+            await conversation.abort();
+            assert.equal(await outcome, "blocked");
+            await assert.rejects(conversation.reply("$new", "Denied"), /room_revoked/);
+            assert.equal(faux.state.callCount, 1);
+        } finally {
+            await harness.close(BACKGROUND_CONTEXT);
+            rmSync(dir, { recursive: true, force: true });
+        }
+    },
+);

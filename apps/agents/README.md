@@ -74,3 +74,22 @@ A fixture exige `NODE_ENV=test`. O comando normal do serviço usa o provider con
 A fatia seguinte está em `firecracker/`, vinculada às issues [#167](https://github.com/fmercurio/claw-tenant/issues/167) e [#145](https://github.com/fmercurio/claw-tenant/issues/145). O [README do worker](./firecracker/README.md) descreve instalação, recursos, isolamento, persistência e aceite pelo navegador.
 
 O override `compose.firecracker.yaml` conecta o container sem privilégios ao socket do worker host. A variável `CLAWDIA_FIRECRACKER_SOCKET` ativa o provisionamento de uma máquina por cadastro e as ferramentas Pi de arquivo e reinício. A configuração base preserva a execução da primeira fatia. O worker deve ser instalado e validado antes de ativar esse override.
+
+## Compartilhar uma sala somente com texto
+
+O dono pode convidar o bot usando o Element e autorizar uma sala privada criptografada pela DM original:
+
+```text
+!clawdia compartilhar https://matrix.to/#/!id-da-sala
+!clawdia revogar https://matrix.to/#/!id-da-sala
+```
+
+O comando de compartilhamento registra a audiência atual após conferir os membros locais, a criptografia e a permissão do dono para convidar. A entrada do bot só acontece para o convite indicado pelo dono. Aguarde a confirmação na DM antes de mencionar o agente na sala. O gateway aceita somente eventos descriptografados com menção explícita em `m.mentions.user_ids`; convites e mensagens em outras salas não concedem acesso.
+
+Cada sala e revisão de acesso têm um SQLite Pi próprio em `rooms/<hash-da-sala>/<revisão>/pi.sqlite`. O transcript e as ferramentas de arquivo da DM continuam privados. A sala não instala ferramentas de máquina, não consulta a fila de artefatos e não importa histórico anterior ao vínculo. Os IDs do lote inicial descartado são retidos para impedir sua admissão após uma repetição de sync. O cursor Matrix é persistido depois da admissão local.
+
+Mudanças na audiência ou nos estados de acesso suspendem o vínculo e bloqueiam os turnos antigos. Uma nova autorização cria outra revisão e contexto vazio. Revogar pela DM grava o bloqueio antes de esperar pelo modelo e aborta a conversa compartilhada. A autorização é conferida antes de executar e de entregar, também no despacho ao provider e nos retries. Erros de consulta de permissões suspendem o acesso.
+
+O outbox da sala persiste resposta, destino, revisão e payload cifrado. Uma retomada autorizada usa a mesma transação Matrix. Envios já iniciados quando ocorre revogação ficam identificados como incertos e não são reenviados depois dela. Mensagens já enviadas seguem o histórico Matrix.
+
+Os testes `RoomSharing.test.ts`, `AgentMatrixClient.test.ts`, `store.test.ts` e `pi.test.ts` cobrem identidade, audiência, fila, revogação concorrente, recuperação e isolamento. O cenário `playwright/e2e/agents/shared-agent.spec.ts` usa Synapse descartável, duas instâncias do Element, E2EE real e Pi/SQLite com provider determinístico. As fixtures `shared-model.ts` e `shared-browser-agent.ts` são importadas explicitamente pelo teste; não usam credenciais reais nem o socket Firecracker. Esse teste local não acessa o laboratório.

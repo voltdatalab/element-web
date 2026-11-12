@@ -6,7 +6,7 @@ Please see LICENSE in the repository root for full details.
 */
 
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { createModels } from "@earendil-works/pi-ai/models";
+import { createModels, type Models, type ModelsDeferredFetchOptions } from "@earendil-works/pi-ai/models";
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
 import { AssistantEntry, createRegistry, Harness } from "@earendil-works/pi-durable";
@@ -33,12 +33,39 @@ export function createInstallationModels(env: NodeJS.ProcessEnv = process.env): 
     return { models, provider };
 }
 
+/** Enforce access at provider dispatch, including compaction and deferred recovery.
+ * Pi extension hook failures are reported and ignored, so hooks cannot enforce authorization.
+ */
+export function guardRoomModels(models: Models, authorize: () => Promise<void>): void {
+    const options = (original: ModelsDeferredFetchOptions = {}): ModelsDeferredFetchOptions => ({
+        ...original,
+        transformHeaders: async (headers) => {
+            const transformed = (await original.transformHeaders?.(headers)) ?? headers;
+            await authorize();
+            original.signal?.throwIfAborted();
+            return transformed;
+        },
+        onPayload: async (payload, model) => {
+            const transformed = await original.onPayload?.(payload, model);
+            await authorize();
+            original.signal?.throwIfAborted();
+            return transformed;
+        },
+    });
+    const stream = models.streamSimple.bind(models);
+    models.streamSimple = (model, context, original) => stream(model, context, options(original));
+    const deferred = models.streamDeferred.bind(models);
+    models.streamDeferred = (model, handle, original) => deferred(model, handle, options(original));
+}
+
 /** Durable Pi conversation with the installation's explicitly configured model. */
 export class PiConversation {
     private readonly harness: Harness;
+    private readonly authorize?: () => Promise<void>;
 
-    public constructor(harness: Harness) {
+    public constructor(harness: Harness, authorize?: () => Promise<void>) {
         this.harness = harness;
+        this.authorize = authorize;
     }
 
     public static async open(
@@ -47,12 +74,15 @@ export class PiConversation {
         description: string,
         modelId: string,
         workspace?: { machine: FirecrackerMachine; record: (callId: string, file: MachineArtifact) => void },
+        authorize?: () => Promise<void>,
     ): Promise<PiConversation> {
+        await authorize?.();
         const { models, provider } = createInstallationModels();
         if (!models.getModel(provider, modelId)) throw new Error("model_not_supported");
         if (!(await models.getAuth(provider))) throw new Error("model_not_configured");
         const registry = createRegistry();
         if (workspace) registry.install(createMachineTools(workspace.machine, workspace.record));
+        if (authorize) guardRoomModels(models, authorize);
         const harness = await Harness.open(await openNodeSqliteStorage(path), { models, registry }, BACKGROUND_CONTEXT);
         try {
             await harness.root(BACKGROUND_CONTEXT, {
@@ -66,8 +96,9 @@ export class PiConversation {
                     maxTurns: workspace ? 8 : 4,
                 },
             });
+            await authorize?.();
             harness.resume();
-            return new PiConversation(harness);
+            return new PiConversation(harness, authorize);
         } catch (error) {
             await harness.close(BACKGROUND_CONTEXT);
             throw error;
@@ -75,7 +106,9 @@ export class PiConversation {
     }
 
     public async reply(eventId: string, text: string): Promise<string> {
+        await this.authorize?.();
         const root = await this.harness.root(BACKGROUND_CONTEXT);
+        await this.authorize?.();
         const submission = await root.submit({ type: "input", requestId: eventId, content: text }, BACKGROUND_CONTEXT);
         const settled = await submission.wait(BACKGROUND_CONTEXT);
         if (settled.status !== "done" || settled.type !== "input") throw new Error("model_turn_failed");
@@ -93,6 +126,12 @@ export class PiConversation {
             .join("\n");
         if (!content) throw new Error("model_answer_empty");
         return content;
+    }
+
+    /** Persist cancellation for a revoked room without touching any other conversation. */
+    public async abort(): Promise<void> {
+        const root = await this.harness.root(BACKGROUND_CONTEXT);
+        await root.abort(BACKGROUND_CONTEXT, { background: true });
     }
 
     public async close(): Promise<void> {

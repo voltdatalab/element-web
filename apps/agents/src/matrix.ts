@@ -7,11 +7,15 @@ Please see LICENSE in the repository root for full details.
 
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { setInterval, clearInterval } from "node:timers";
 import { createHash } from "node:crypto";
-import { MatrixClient, SimpleFsStorageProvider, RustSdkCryptoStorageProvider } from "matrix-bot-sdk";
+import { type MatrixClient, SimpleFsStorageProvider, RustSdkCryptoStorageProvider } from "matrix-bot-sdk";
 import type { AgentStore, Agent } from "./store.ts";
 import { FirecrackerMachine } from "./FirecrackerMachine.ts";
 import { PiConversation } from "./pi.ts";
+import { AgentMatrixClient } from "./AgentMatrixClient.ts";
+import { RoomSharing } from "./RoomSharing.ts";
+import type { SharedMessage } from "./roomSharingTypes.ts";
 
 /** Settings kept exclusively in the trusted service. */
 export interface AgentConfig {
@@ -26,6 +30,7 @@ export interface AgentConfig {
 export class AgentManager {
     private readonly running = new Map<string, Promise<MatrixClient>>();
     private readonly conversations = new Map<string, PiConversation>();
+    private readonly sharing = new Map<string, RoomSharing>();
     private readonly draining = new Map<string, Promise<void>>();
     private closing = false;
 
@@ -38,7 +43,11 @@ export class AgentManager {
         this.store = store;
         this.retry = setInterval(() => {
             for (const [id, work] of this.running) {
-                void work.then((bot) => this.drain(this.store.get(id)!, bot)).catch(() => undefined);
+                void work
+                    .then(async (bot) => {
+                        await Promise.all([this.drain(this.store.get(id)!, bot), this.sharing.get(id)?.tick()]);
+                    })
+                    .catch(() => undefined);
             }
         }, 5000);
         this.retry.unref();
@@ -100,7 +109,7 @@ export class AgentManager {
             this.store.token(agent.id, login.access_token);
             agent = this.store.get(agent.id)!;
         }
-        const bot = new MatrixClient(
+        const bot = new AgentMatrixClient(
             this.config.homeserver,
             agent.bot_token!,
             new SimpleFsStorageProvider(path.join(folder, "matrix.json")),
@@ -149,6 +158,18 @@ export class AgentManager {
                 machine ? { machine, record: (id, file) => this.store.artifact(agent.id, id, file) } : undefined,
             );
             this.conversations.set(agent.id, conversation);
+            const sharing = new RoomSharing(agent, bot, this.store, this.config);
+            this.sharing.set(agent.id, sharing);
+            bot.beforeSync = (batch) => sharing.beforeSync(batch);
+            bot.afterSync = (batch) => {
+                sharing.afterSync(batch);
+                void sharing.tick();
+            };
+            bot.on("room.decrypted_event", (roomId: string, event: SharedMessage) => {
+                if (this.closing) return;
+                sharing.receive(roomId, event);
+                void sharing.tick();
+            });
             // Admission is synchronous, so a persisted sync cursor cannot overtake the inbox insert.
             bot.on(
                 "room.message",
@@ -160,7 +181,8 @@ export class AgentManager {
                         this.closing ||
                         roomId !== agent.room_id ||
                         event.sender !== agent.owner ||
-                        event.content.msgtype !== "m.text"
+                        event.content.msgtype !== "m.text" ||
+                        event.content.body?.startsWith("!clawdia")
                     )
                         return;
                     if (typeof event.content.body !== "string" || event.content.body.length > 20_000) return;
@@ -174,6 +196,8 @@ export class AgentManager {
             return bot;
         } catch (error) {
             bot.stop();
+            await this.sharing.get(agent.id)?.close();
+            this.sharing.delete(agent.id);
             await this.conversations.get(agent.id)?.close();
             this.conversations.delete(agent.id);
             throw error;
@@ -274,6 +298,7 @@ export class AgentManager {
             const bot = await work.catch(() => undefined);
             bot?.stop();
         }
+        await Promise.all([...this.sharing.values()].map((sharing) => sharing.close()));
         await Promise.all([...this.conversations.values()].map((conversation) => conversation.close()));
         await Promise.all(this.draining.values());
     }

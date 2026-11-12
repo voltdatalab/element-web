@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { AgentStore } from "./store.ts";
 
 void test("creation retry recovers the same private agent and rejects a changed payload", () => {
@@ -22,6 +23,36 @@ void test("creation retry recovers the same private agent and rejects a changed 
         assert.equal(store.all().length, 2);
     } finally {
         store.close();
+    }
+});
+
+void test("adding room access preserves the legacy DM queue without importing any row into a shared scope", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "clawdia-legacy-store-"));
+    const filename = path.join(dir, "agents.sqlite");
+    const legacy = new DatabaseSync(filename);
+    legacy.exec(`
+        CREATE TABLE agents (id TEXT PRIMARY KEY,owner TEXT,request_key TEXT,name TEXT,description TEXT,
+            status TEXT,password TEXT,bot_token TEXT,room_id TEXT,UNIQUE(owner,request_key));
+        CREATE TABLE messages (event_id TEXT PRIMARY KEY,agent_id TEXT,body TEXT,answer TEXT,delivered INTEGER DEFAULT 0);
+        INSERT INTO agents VALUES ('agent','@owner:test','key','Agent','','ready','','test-only','!private:test');
+        INSERT INTO messages VALUES ('$private','agent','PRIVATE_SENTINEL','private answer',0);
+    `);
+    legacy.close();
+    let store = new AgentStore(filename);
+    try {
+        assert.deepEqual(
+            store.pending("agent").map((row) => ({ ...row })),
+            [{ event_id: "$private", body: "PRIVATE_SENTINEL", answer: "private answer" }],
+        );
+        assert.deepEqual(store.grants("agent"), []);
+        assert.equal(store.database.prepare("SELECT COUNT(*) AS count FROM room_turns").get()?.count, 0);
+        store.close();
+        store = new AgentStore(filename);
+        assert.equal(store.pending("agent").length, 1);
+        assert.equal(store.get("agent")?.room_id, "!private:test");
+    } finally {
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
     }
 });
 
