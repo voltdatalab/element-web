@@ -1,0 +1,62 @@
+# Copyright 2026 Volt Data Lab
+# SPDX-License-Identifier: AGPL-3.0-only
+name: Element Agents and Firecracker Lab
+
+on:
+    push:
+        branches: [codex/firecracker-agent-workspace]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    element-agents:
+        name: element-agents
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+
+            - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+              with:
+                  runtime: node@26.7.0
+                  cache: true
+                  install: false
+
+            - name: Install agent dependencies from the lockfile
+              run: pnpm --filter @voltdatalab/element-agents install --frozen-lockfile --ignore-scripts
+
+            - name: Prepare the Matrix encryption binding
+              run: pnpm rebuild @matrix-org/matrix-sdk-crypto-nodejs
+
+            - name: Check agent types
+              run: pnpm --filter @voltdatalab/element-agents lint:types
+
+            - name: Test agents, shared rooms and machine tools
+              run: pnpm --filter @voltdatalab/element-agents test:unit
+
+    firecracker-lab:
+        name: firecracker-lab
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+
+            - name: Test worker and guest without KVM
+              run: python3 -m unittest discover -s apps/agents/firecracker -v
+
+            - name: Check installer and guest init syntax
+              run: |
+                  bash -n apps/agents/firecracker/install-lab.sh
+                  sh -n apps/agents/firecracker/init.sh
+
+            - name: Test Compose configuration and existing state compatibility
+              run: python3 apps/agents/test_compose.py -v

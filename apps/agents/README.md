@@ -48,6 +48,10 @@ O arquivo `element.config.example.json` configura o cliente para esse laboratór
 
 ## Verificação
 
+A CI `Element Agents and Firecracker Lab` roda em todo push para `codex/firecracker-agent-workspace`. O check `element-agents` instala as dependências fixadas no lockfile com Node 26.7.0 e verifica tipos e testes do serviço, incluindo salas compartilhadas e ferramentas de máquina. O check `firecracker-lab` executa os testes Python de worker/guest, confere a sintaxe dos scripts e valida o Compose com `python3 apps/agents/test_compose.py -v`.
+
+Esses checks usam runners descartáveis do GitHub, sem credenciais de modelo ou do laboratório. O teste de integração Matrix que requer credenciais fica ignorado nesse ambiente. A configuração do Compose é validada sem iniciar containers. A publicação continua sendo uma etapa operacional separada, fora desse workflow.
+
 Os testes do store cobrem repetição, conflito e recuperação de provisionamento/fila. O teste Pi usa harness e SQLite reais com provider determinístico. Os testes HTTP verificam identidade, acesso, tamanho de entrada e ausência de segredos na resposta. Os testes do view model e do formulário cobrem abertura, erro, recarga e submissão repetida. O Playwright cobre o fluxo de interface com resposta de provisionamento controlada.
 
 Uma resposta de LLM e uma DM real no laboratório constituem verificações adicionais, registradas na issue com ambiente e versão. O provider determinístico comprova a integração persistente do harness.
