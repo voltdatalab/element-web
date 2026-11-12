@@ -1,6 +1,6 @@
 # Workspace Firecracker por agente
 
-Implementação da fatia 2 da [ClawdIA #167](https://github.com/fmercurio/claw-tenant/issues/167), vinculada à [frente Firecracker #145](https://github.com/fmercurio/claw-tenant/issues/145).
+Implementação da fatia 2 da [Element Agents #167](https://github.com/fmercurio/claw-tenant/issues/167), vinculada à [frente Firecracker #145](https://github.com/fmercurio/claw-tenant/issues/145).
 
 Pi Durable, a identidade Matrix, as chaves E2EE e as credenciais do modelo continuam no serviço de agentes. O worker do host cria uma microVM por UUID de agente. O guest oferece somente arquivos UTF-8 em `/workspace` e sincronização de disco por vsock. O Pi recebe `write_file`, `read_file` e `restart_machine`, vinculados ao cadastro do agente pelo backend. O modelo não escolhe UUID, socket ou caminho do host.
 
@@ -22,7 +22,7 @@ Ao parar, o worker pede sincronização ao guest e encerra o VMM. O boot seguint
 
 `install-lab.sh` deve ser executado manualmente como root no Linux x86_64 autorizado. Ele instala o par oficial Firecracker/jailer 1.18.0, confere o SHA-256 publicado da distribuição e obtém o kernel 6.1.188 do artefato CI oficial datado de 05/11/2026. O guest é construído a partir de Alpine 3.23.2 com Python. Os hashes de kernel e rootfs resultantes são registrados em `assets.sha256`. O script recusa substituir ativos de uma instalação já inicializada.
 
-O serviço host fica em `clawdia-firecracker-lab.service`. Seu código e ativos ficam em `/opt/clawdia-firecracker-lab`, o estado em `/var/lib/clawdia-fc-lab` e o socket em `/run/clawdia-firecracker-lab/worker.sock`. A instalação cria apenas o cgroup próprio do laboratório. Não configura interfaces, rotas, firewall ou serviços do restante do host. A ativação do serviço root no servidor compartilhado exige autorização explícita.
+O serviço host fica em `firecracker-lab.service`. Seu código e ativos ficam em `/opt/firecracker-lab`, o estado em `/var/lib/firecracker-lab` e o socket em `/run/firecracker-lab/worker.sock`. A instalação cria apenas o cgroup próprio do laboratório. Não configura interfaces, rotas, firewall ou serviços do restante do host. A ativação do serviço root no servidor compartilhado exige autorização explícita.
 
 Após instalar o worker, ativar o override, de `apps/agents`.
 
@@ -53,3 +53,11 @@ O verificador operacional `validate-lab.py` usa dois UUIDs de laboratório e o w
 Registrar separadamente boot KVM real, UID/cgroup observados, hashes, boot IDs diferentes, isolamento entre dois agentes e o resultado do navegador. Testes locais com o worker simulado não comprovam execução em microVM.
 
 Referências técnicas: [jailer 1.18.0](https://github.com/firecracker-microvm/firecracker/blob/v1.18.0/docs/jailer.md), [vsock 1.18.0](https://github.com/firecracker-microvm/firecracker/blob/v1.18.0/docs/vsock.md) e [getting started 1.18.0](https://github.com/firecracker-microvm/firecracker/blob/v1.18.0/docs/getting-started.md).
+
+## Compatibilidade da renomeação
+
+Os nomes canônicos são `firecracker-lab.service`, `/opt/firecracker-lab`, `/var/lib/firecracker-lab`, `/run/firecracker-lab` e `/sys/fs/cgroup/firecracker-lab`. Configuração explícita usa `FIRECRACKER_LAB_STATE`, `FIRECRACKER_LAB_ASSETS`, `FIRECRACKER_LAB_SOCKET`, `FIRECRACKER_LAB_CGROUP`, `FIRECRACKER_LAB_CLIENT_UID` e `FIRECRACKER_LAB_MAX_MACHINES`.
+
+Se o estado anterior em `/var/lib/clawdia-fc-lab` existir sozinho, o worker conserva os caminhos antigos de estado, ativos, socket e cgroup. Se os dois estados padrão existirem, ele recusa escolher implicitamente: exigir `FIRECRACKER_LAB_STATE` explícito impede um registro vazio paralelo. As variáveis `CLAWDIA_FC_*` permanecem como fallback. Não se renomeiam IDs de máquinas, recibos persistidos ou o protocolo do rootfs existente.
+
+O instalador recusa uma instalação anterior detectada; não executa migração, reinstalação ou substituição dos discos. Um ambiente já instalado conserva seu serviço e seus diretórios até uma migração operacional explicitamente autorizada. Para verificar esse ambiente, fornecer seu socket existente ao argumento `--socket` do verificador. Os testes de compatibilidade são locais e não abrem KVM.

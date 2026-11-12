@@ -4,6 +4,6 @@
 services:
     agents:
         environment:
-            CLAWDIA_FIRECRACKER_SOCKET: /run/clawdia-firecracker-lab/worker.sock
+            FIRECRACKER_LAB_SOCKET: /run/firecracker-lab/worker.sock
         volumes:
-            - /run/clawdia-firecracker-lab:/run/clawdia-firecracker-lab:ro
+            - ${FIRECRACKER_LAB_SOCKET_DIR:-/run/firecracker-lab}:/run/firecracker-lab:ro

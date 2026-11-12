@@ -9,10 +9,55 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
+import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { AgentStore } from "./store.ts";
-import { createAgentHttpServer } from "./server.ts";
+import { createAgentHttpServer, agentEnvironment } from "./server.ts";
 import type { AgentManager } from "./matrix.ts";
+
+void test("element-agents deployment settings override legacy settings without widening an empty allowlist", () => {
+    const config = agentEnvironment({
+        ELEMENT_AGENTS_ALLOWED_USERS: "@current:test",
+        CLAWDIA_ALLOWED_USERS: "@legacy:test",
+        ELEMENT_AGENTS_STATE_DIR: "/existing/agents",
+        CLAWDIA_STATE_DIR: "/other/agents",
+    });
+    assert.deepEqual([...config.allowed], ["@current:test"]);
+    assert.equal(config.stateDir, "/existing/agents");
+    assert.equal(
+        agentEnvironment({ ELEMENT_AGENTS_ALLOWED_USERS: "", CLAWDIA_ALLOWED_USERS: "@legacy:test" }).allowed.size,
+        0,
+    );
+});
+
+void test("legacy deployment settings retain the existing agent state and identities", () => {
+    const config = agentEnvironment({
+        CLAWDIA_ALLOWED_USERS: "@owner:test",
+        CLAWDIA_STATE_DIR: "/existing/private-state",
+    });
+    assert.deepEqual([...config.allowed], ["@owner:test"]);
+    assert.equal(config.stateDir, "/existing/private-state");
+});
+
+void test("image state defaults preserve explicit legacy and canonical directories", () => {
+    const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
+    const stateSetting = dockerfile.match(/^ENV (\w+)=\/data /m)?.[1];
+    assert.ok(stateSetting);
+    const imageEnvironment = { [stateSetting]: "/data" };
+    assert.equal(agentEnvironment(imageEnvironment).stateDir, "/data");
+    assert.equal(
+        agentEnvironment({ ...imageEnvironment, CLAWDIA_STATE_DIR: "/existing/private-state" }).stateDir,
+        "/existing/private-state",
+    );
+    assert.equal(
+        agentEnvironment({
+            ...imageEnvironment,
+            CLAWDIA_STATE_DIR: "/existing/private-state",
+            ELEMENT_AGENTS_STATE_DIR: "/selected/private-state",
+        }).stateDir,
+        "/selected/private-state",
+    );
+});
 
 async function fixture() {
     const store = new AgentStore(":memory:");

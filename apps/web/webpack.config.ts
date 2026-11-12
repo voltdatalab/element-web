@@ -776,7 +776,12 @@ export default (env: string, argv: Record<string, any>): webpack.Configuration =
 
         // configuration for the webpack-dev-server
         devServer: {
-            proxy: [{ context: ["/clawdia"], target: process.env.CLAWDIA_AGENTS_URL ?? "http://127.0.0.1:8787" }],
+            proxy: [
+                {
+                    context: ["/clawdia"],
+                    target: process.env.ELEMENT_AGENTS_URL ?? process.env.CLAWDIA_AGENTS_URL ?? "http://127.0.0.1:8787",
+                },
+            ],
             client: {
                 overlay: {
                     // Only show overlay on build errors as anything more can get annoying quickly

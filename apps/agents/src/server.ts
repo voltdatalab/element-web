@@ -97,6 +97,21 @@ export function createAgentHttpServer(
     });
 }
 
+/** Read deployment names while keeping existing installations compatible. */
+export function agentEnvironment(env: NodeJS.ProcessEnv = process.env): {
+    allowed: ReadonlySet<string>;
+    stateDir: string;
+} {
+    return {
+        allowed: new Set(
+            (env.ELEMENT_AGENTS_ALLOWED_USERS ?? env.CLAWDIA_ALLOWED_USERS ?? "").split(",").filter(Boolean),
+        ),
+        stateDir: path.resolve(
+            env.ELEMENT_AGENTS_STATE_DIR ?? env.CLAWDIA_STATE_DIR ?? env.ELEMENT_AGENTS_DEFAULT_STATE_DIR ?? "./state",
+        ),
+    };
+}
+
 /** Start the service with one writer for its state and Pi stores. */
 export async function main(): Promise<void> {
     process.umask(0o077);
@@ -112,10 +127,9 @@ export async function main(): Promise<void> {
     const serverName = process.env.MATRIX_SERVER_NAME;
     const adminToken = process.env.MATRIX_ADMIN_TOKEN;
     const model = process.env.PI_MODEL;
-    const allowed = new Set((process.env.CLAWDIA_ALLOWED_USERS ?? "").split(",").filter(Boolean));
+    const { allowed, stateDir } = agentEnvironment();
     if (!homeserver || !serverName || !adminToken || !model || !allowed.size) throw new Error("service_not_configured");
     createInstallationModels();
-    const stateDir = path.resolve(process.env.CLAWDIA_STATE_DIR ?? "./state");
     await mkdir(stateDir, { recursive: true, mode: 0o700 });
     await chmod(stateDir, 0o700);
     const release = await lock(stateDir, {

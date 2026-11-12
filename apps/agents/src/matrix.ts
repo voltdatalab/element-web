@@ -146,9 +146,8 @@ export class AgentManager {
                 this.store.room(agent.id, roomId);
                 agent = this.store.get(agent.id)!;
             }
-            const machine = process.env.CLAWDIA_FIRECRACKER_SOCKET
-                ? new FirecrackerMachine(process.env.CLAWDIA_FIRECRACKER_SOCKET, agent.id)
-                : undefined;
+            const machineSocket = process.env.FIRECRACKER_LAB_SOCKET ?? process.env.CLAWDIA_FIRECRACKER_SOCKET;
+            const machine = machineSocket ? new FirecrackerMachine(machineSocket, agent.id) : undefined;
             if (machine) await machine.ensure();
             const conversation = await PiConversation.open(
                 path.join(folder, "pi.sqlite"),

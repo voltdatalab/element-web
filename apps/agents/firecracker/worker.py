@@ -17,12 +17,34 @@ import subprocess
 import time
 import uuid
 
-BASE = Path(os.environ.get('CLAWDIA_FC_STATE', '/var/lib/clawdia-fc-lab'))
-ASSETS = Path(os.environ.get('CLAWDIA_FC_ASSETS', '/opt/clawdia-firecracker-lab'))
-SOCKET = Path(os.environ.get('CLAWDIA_FC_SOCKET', '/run/clawdia-firecracker-lab/worker.sock'))
-ALLOWED_UID = int(os.environ.get('CLAWDIA_FC_CLIENT_UID', '1000'))
-MAX_MACHINES = int(os.environ.get('CLAWDIA_FC_MAX_MACHINES', '4'))
-CGROUP = Path('/sys/fs/cgroup/clawdia-fc-lab')
+def lab_configuration(environ=None, exists=None):
+    environ = os.environ if environ is None else environ
+    exists = Path.exists if exists is None else exists
+    current_state = Path('/var/lib/firecracker-lab')
+    legacy_state = Path('/var/lib/clawdia-fc-lab')
+    explicit = environ.get('FIRECRACKER_LAB_STATE', environ.get('CLAWDIA_FC_STATE'))
+    if explicit is None and exists(current_state) and exists(legacy_state):
+        raise ValueError('ambiguous_lab_state: set FIRECRACKER_LAB_STATE explicitly')
+    legacy = (explicit == str(legacy_state)
+              or ('CLAWDIA_FC_STATE' in environ and 'FIRECRACKER_LAB_STATE' not in environ)
+              or (explicit is None and exists(legacy_state)))
+    base = Path(explicit) if explicit is not None else legacy_state if legacy else current_state
+    defaults = {
+        'STATE': base,
+        'ASSETS': Path('/opt/clawdia-firecracker-lab' if legacy else '/opt/firecracker-lab'),
+        'SOCKET': Path('/run/clawdia-firecracker-lab/worker.sock' if legacy else '/run/firecracker-lab/worker.sock'),
+        'CGROUP': Path('/sys/fs/cgroup/clawdia-fc-lab' if legacy else '/sys/fs/cgroup/firecracker-lab'),
+    }
+    paths = {key: Path(environ.get('FIRECRACKER_LAB_' + key, environ.get('CLAWDIA_FC_' + key, str(value))))
+             for key, value in defaults.items()}
+    paths['CLIENT_UID'] = int(environ.get('FIRECRACKER_LAB_CLIENT_UID', environ.get('CLAWDIA_FC_CLIENT_UID', '1000')))
+    paths['MAX_MACHINES'] = int(environ.get('FIRECRACKER_LAB_MAX_MACHINES', environ.get('CLAWDIA_FC_MAX_MACHINES', '4')))
+    return paths
+
+
+_config = lab_configuration()
+BASE, ASSETS, SOCKET, CGROUP = (_config[key] for key in ('STATE', 'ASSETS', 'SOCKET', 'CGROUP'))
+ALLOWED_UID, MAX_MACHINES = (_config[key] for key in ('CLIENT_UID', 'MAX_MACHINES'))
 
 
 def identity(value):
@@ -194,7 +216,7 @@ class Worker:
         self.db.commit()
         args = [str(ASSETS / 'jailer'), '--id', agent, '--exec-file', str(ASSETS / 'firecracker'),
                 '--uid', str(uid), '--gid', str(uid), '--chroot-base-dir', str(BASE / 'jails'),
-                '--new-pid-ns', '--cgroup-version', '2', '--parent-cgroup', 'clawdia-fc-lab',
+                '--new-pid-ns', '--cgroup-version', '2', '--parent-cgroup', str(CGROUP.relative_to('/sys/fs/cgroup')),
                 '--cgroup', 'cpu.max=100000 100000', '--cgroup', 'memory.max=402653184',
                 '--cgroup', 'pids.max=64', '--resource-limit', 'no-file=256', '--resource-limit', 'fsize=268435456',
                 '--', '--config-file', '/config.json', '--api-sock', '/api.sock']

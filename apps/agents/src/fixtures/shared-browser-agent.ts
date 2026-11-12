@@ -36,6 +36,8 @@ export function prepareSharedBrowserAgent(
     const agent = store.create(owner, "browser-sharing", "Analista compartilhado", "Agente de teste local");
     const pi = mock.method(PiConversation, "open", openSharedTestConversation);
     const socket = process.env.CLAWDIA_FIRECRACKER_SOCKET;
+    const namedSocket = process.env.FIRECRACKER_LAB_SOCKET;
+    delete process.env.FIRECRACKER_LAB_SOCKET;
     delete process.env.CLAWDIA_FIRECRACKER_SOCKET;
     let manager: AgentManager | undefined;
     let matrix: Awaited<ReturnType<AgentManager["ensure"]>> | undefined;
@@ -78,6 +80,8 @@ export function prepareSharedBrowserAgent(
             pi.mock.restore();
             if (socket === undefined) delete process.env.CLAWDIA_FIRECRACKER_SOCKET;
             else process.env.CLAWDIA_FIRECRACKER_SOCKET = socket;
+            if (namedSocket === undefined) delete process.env.FIRECRACKER_LAB_SOCKET;
+            else process.env.FIRECRACKER_LAB_SOCKET = namedSocket;
         },
     };
 }

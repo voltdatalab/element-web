@@ -1,6 +1,6 @@
 # Copyright 2026 Volt Data Lab
 # SPDX-License-Identifier: AGPL-3.0-only
-name: clawdia-element-first-slice
+name: ${ELEMENT_AGENTS_PROJECT_NAME:-element-agents}
 services:
     synapse:
         image: ghcr.io/element-hq/synapse:v1.165.0
@@ -16,9 +16,9 @@ services:
         restart: unless-stopped
         environment:
             MATRIX_HOMESERVER: http://synapse:8008
-            MATRIX_SERVER_NAME: clawdia-lab.local
+            MATRIX_SERVER_NAME: ${MATRIX_SERVER_NAME:-clawdia-lab.local}
             MATRIX_ADMIN_TOKEN: ${MATRIX_ADMIN_TOKEN:-}
-            CLAWDIA_ALLOWED_USERS: ${CLAWDIA_ALLOWED_USERS:-}
+            ELEMENT_AGENTS_ALLOWED_USERS: ${ELEMENT_AGENTS_ALLOWED_USERS-${CLAWDIA_ALLOWED_USERS:-}}
             OPENAI_API_KEY: ${OPENAI_API_KEY:-}
             PI_MODEL: ${PI_MODEL:-}
             PI_PROVIDER: ${PI_PROVIDER:-openai}
@@ -31,4 +31,8 @@ services:
             - synapse
 volumes:
     synapse-data:
+        name: ${ELEMENT_AGENTS_SYNAPSE_VOLUME:-${COMPOSE_PROJECT_NAME:-element-agents}_synapse-data}
+        external: ${ELEMENT_AGENTS_EXTERNAL_VOLUMES:-false}
     agents-data:
+        name: ${ELEMENT_AGENTS_STATE_VOLUME:-${COMPOSE_PROJECT_NAME:-element-agents}_agents-data}
+        external: ${ELEMENT_AGENTS_EXTERNAL_VOLUMES:-false}

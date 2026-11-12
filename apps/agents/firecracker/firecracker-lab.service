@@ -1,14 +1,14 @@
 # Copyright 2026 Volt Data Lab
 # SPDX-License-Identifier: AGPL-3.0-only
 [Unit]
-Description=ClawdIA Firecracker laboratory worker
+Description=Firecracker lab worker
 After=local-fs.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /opt/clawdia-firecracker-lab/worker.py
-Environment=CLAWDIA_FC_CLIENT_UID=1000
-Environment=CLAWDIA_FC_MAX_MACHINES=4
+ExecStart=/usr/bin/python3 /opt/firecracker-lab/worker.py
+Environment=FIRECRACKER_LAB_CLIENT_UID=1000
+Environment=FIRECRACKER_LAB_MAX_MACHINES=4
 Restart=on-failure
 RestartSec=2
 UMask=0077

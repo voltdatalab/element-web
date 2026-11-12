@@ -23,7 +23,7 @@ def request(address, agent, op, key=None, **args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--socket', default='/run/clawdia-firecracker-lab/worker.sock')
+    parser.add_argument('--socket', default='/run/firecracker-lab/worker.sock')
     parser.add_argument('--agent', required=True, help='A registered lab agent UUID')
     parser.add_argument('--peer', required=True, help='A second lab-only UUID, reserved for isolation validation')
     args = parser.parse_args()

@@ -39,6 +39,44 @@ class FakeWorker(worker.Worker):
         return {'bootId': row['generation']}
 
 
+class LabConfigurationTests(unittest.TestCase):
+    def test_fresh_install_uses_firecracker_lab_paths_and_keeps_resource_limits(self):
+        config = worker.lab_configuration({}, lambda path: False)
+        self.assertEqual(config['STATE'], Path('/var/lib/firecracker-lab'))
+        self.assertEqual(config['ASSETS'], Path('/opt/firecracker-lab'))
+        self.assertEqual(config['SOCKET'], Path('/run/firecracker-lab/worker.sock'))
+        self.assertEqual(config['CGROUP'], Path('/sys/fs/cgroup/firecracker-lab'))
+        self.assertEqual(config['CLIENT_UID'], 1000)
+        self.assertEqual(config['MAX_MACHINES'], 4)
+
+    def test_existing_legacy_state_keeps_its_assets_socket_and_cgroup_together(self):
+        config = worker.lab_configuration({}, lambda path: path == Path('/var/lib/clawdia-fc-lab'))
+        self.assertEqual(config['STATE'], Path('/var/lib/clawdia-fc-lab'))
+        self.assertEqual(config['ASSETS'], Path('/opt/clawdia-firecracker-lab'))
+        self.assertEqual(config['SOCKET'], Path('/run/clawdia-firecracker-lab/worker.sock'))
+        self.assertEqual(config['CGROUP'], Path('/sys/fs/cgroup/clawdia-fc-lab'))
+
+    def test_ambiguous_default_states_require_an_explicit_choice(self):
+        with self.assertRaisesRegex(ValueError, 'ambiguous_lab_state'):
+            worker.lab_configuration({}, lambda path: True)
+
+    def test_explicit_canonical_settings_win_over_legacy_settings(self):
+        config = worker.lab_configuration({
+            'FIRECRACKER_LAB_STATE': '/selected/state', 'CLAWDIA_FC_STATE': '/old/state',
+            'FIRECRACKER_LAB_SOCKET': '/selected/worker.sock', 'CLAWDIA_FC_SOCKET': '/old/worker.sock',
+            'FIRECRACKER_LAB_MAX_MACHINES': '4', 'CLAWDIA_FC_MAX_MACHINES': '2',
+        }, lambda path: True)
+        self.assertEqual(config['STATE'], Path('/selected/state'))
+        self.assertEqual(config['SOCKET'], Path('/selected/worker.sock'))
+        self.assertEqual(config['MAX_MACHINES'], 4)
+
+    def test_legacy_custom_state_keeps_the_legacy_defaults(self):
+        config = worker.lab_configuration({'CLAWDIA_FC_STATE': '/existing/custom-state'}, lambda path: False)
+        self.assertEqual(config['STATE'], Path('/existing/custom-state'))
+        self.assertEqual(config['ASSETS'], Path('/opt/clawdia-firecracker-lab'))
+        self.assertEqual(config['CGROUP'], Path('/sys/fs/cgroup/clawdia-fc-lab'))
+
+
 class WorkerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
