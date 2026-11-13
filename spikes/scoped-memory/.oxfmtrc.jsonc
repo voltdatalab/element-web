@@ -1,0 +1,10 @@
+// Copyright 2026 Volt Data Lab
+// SPDX-License-Identifier: AGPL-3.0-only
+{
+    "printWidth": 120,
+    "tabWidth": 4,
+    "quoteProps": "consistent",
+    "trailingComma": "all",
+    "sortPackageJson": false,
+    "ignorePatterns": ["node_modules", "pnpm-lock.yaml", "coverage"],
+}

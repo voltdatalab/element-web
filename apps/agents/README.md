@@ -98,6 +98,12 @@ O outbox da sala persiste resposta, destino, revisão e payload cifrado. Uma ret
 
 Os testes `RoomSharing.test.ts`, `AgentMatrixClient.test.ts`, `store.test.ts` e `pi.test.ts` cobrem identidade, audiência, fila, revogação concorrente, recuperação e isolamento. O cenário `playwright/e2e/agents/shared-agent.spec.ts` usa Synapse descartável, duas instâncias do Element, E2EE real e Pi/SQLite com provider determinístico. As fixtures `shared-model.ts` e `shared-browser-agent.ts` são importadas explicitamente pelo teste; não usam credenciais reais nem o socket Firecracker. Esse teste local não acessa o laboratório.
 
+## Laboratório sintético de memória
+
+O experimento independente em [`../../spikes/scoped-memory`](../../spikes/scoped-memory/README.md) valida
+fronteiras de acesso, fontes, correções e persistência com dados inventados, sem LLM ou integração com produção.
+O guia contém os comandos reproduzíveis e os limites do que foi exercitado. Não é uma funcionalidade da API.
+
 ## Nomes de implantação e estado existente
 
 O prefixo da aplicação é `element-agents`; o worker host usa `firecracker-lab`. O Compose usa o projeto `element-agents`, e o pacote Node é `@voltdatalab/element-agents`. O frontend de exemplo mostra a marca Element Agents. Os volumes padrão acompanham o nome efetivo do projeto, inclusive quando definido por `ELEMENT_AGENTS_PROJECT_NAME` ou `-p`, para isolar instalações diferentes.

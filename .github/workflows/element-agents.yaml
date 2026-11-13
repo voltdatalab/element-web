@@ -41,6 +41,39 @@ jobs:
             - name: Test agents, shared rooms and machine tools
               run: pnpm --filter @voltdatalab/element-agents test:unit
 
+    scoped-memory:
+        name: scoped-memory
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        defaults:
+            run:
+                working-directory: spikes/scoped-memory
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+
+            - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+              with:
+                  version: 12.11.2
+                  runtime: node@26.7.0
+                  working-directory: spikes/scoped-memory
+                  cache: true
+                  cache-dependency-path: spikes/scoped-memory/pnpm-lock.yaml
+                  install: false
+
+            - name: Install isolated experiment tools from its lockfile
+              run: pnpm --ignore-workspace install --frozen-lockfile --ignore-scripts
+
+            - name: Check types, boundaries and formatting
+              run: |
+                  pnpm --ignore-workspace check
+                  pnpm --ignore-workspace test
+                  pnpm --ignore-workspace format:check
+
+            - name: Exercise the synthetic offline demo
+              run: node run.ts
+
     firecracker-lab:
         name: firecracker-lab
         runs-on: ubuntu-24.04

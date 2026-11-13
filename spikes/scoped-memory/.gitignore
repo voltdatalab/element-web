@@ -1,0 +1,6 @@
+# Copyright 2026 Volt Data Lab
+# SPDX-License-Identifier: AGPL-3.0-only
+node_modules/
+coverage/
+*.sqlite
+*.sqlite-*
