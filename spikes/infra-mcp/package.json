@@ -1,0 +1,27 @@
+{
+    "name": "@voltdatalab/infra-mcp-lab",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test": "vitest run --config vitest.config.ts",
+        "check": "node node_modules/typescript/bin/tsc --noEmit",
+        "format:check": "oxfmt --check .",
+        "demo": "node run.ts"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "1.32.2",
+        "express": "5.3.0",
+        "zod": "4.6.7"
+    },
+    "devDependencies": {
+        "@types/express": "5.0.6",
+        "@types/node": "26.6.6",
+        "oxfmt": "0.72.0",
+        "typescript": "https://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz",
+        "vitest": "5.0.3"
+    },
+    "engines": {
+        "node": ">=22.19.0"
+    },
+    "packageManager": "pnpm@12.11.2"
+}

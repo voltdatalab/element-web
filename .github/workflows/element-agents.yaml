@@ -93,6 +93,39 @@ jobs:
                   ELEMENT_AGENTS_EVIDENCE_INTEGRATION: "1"
               run: pnpm --ignore-workspace exec vitest run --config vitest.config.ts evaluateEvidence.test.ts
 
+    infra-mcp:
+        name: infra-mcp
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        defaults:
+            run:
+                working-directory: spikes/infra-mcp
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+
+            - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+              with:
+                  version: 12.11.2
+                  runtime: node@26.7.0
+                  working-directory: spikes/infra-mcp
+                  cache: true
+                  cache-dependency-path: spikes/infra-mcp/pnpm-lock.yaml
+                  install: false
+
+            - name: Install the isolated MCP experiment
+              run: pnpm --ignore-workspace install --frozen-lockfile --ignore-scripts
+
+            - name: Check MCP types, authentication boundaries and formatting
+              run: |
+                  pnpm --ignore-workspace check
+                  pnpm --ignore-workspace test
+                  pnpm --ignore-workspace format:check
+
+            - name: Exercise local OAuth and a real MCP SDK client
+              run: node run.ts
+
     firecracker-lab:
         name: firecracker-lab
         runs-on: ubuntu-24.04
