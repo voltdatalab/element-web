@@ -5,12 +5,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 Please see LICENSE in the repository root for full details.
 */
 
-import { createHash, randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { mkdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 
+import { prepareModelArtifacts, verifyModelArtifacts } from "./modelArtifacts.ts";
 import type { TextEmbedder } from "./semanticTypes.ts";
 
 /** Public model artifacts pinned by revision, exact byte length and SHA-256. Weights stay outside Git. */
@@ -55,81 +53,12 @@ export const MODEL_CONFIG = Object.freeze({
 
 /** Verify pinned artifacts without loading a runtime or attempting a download. */
 export async function verifyModelDirectory(directory: string = modelDirectory()): Promise<void> {
-    for (const artifact of MODEL_CONFIG.manifest) await verifyModelFile(directory, artifact);
-}
-
-async function verifyModelFile(directory: string, artifact: (typeof MODEL_CONFIG.manifest)[number]): Promise<void> {
-    const file = join(directory, artifact.path);
-    let size: number;
-    try {
-        size = (await stat(file)).size;
-    } catch (error) {
-        throw new Error(`model_file_missing: ${artifact.path}`, { cause: error });
-    }
-    if (size !== artifact.bytes) throw new Error(`model_file_size_mismatch: ${artifact.path}`);
-    const hash = createHash("sha256");
-    let bytes = 0;
-    for await (const chunk of createReadStream(file)) {
-        bytes += chunk.length;
-        if (bytes > artifact.bytes) throw new Error(`model_file_size_mismatch: ${artifact.path}`);
-        hash.update(chunk);
-    }
-    if (bytes !== artifact.bytes) throw new Error(`model_file_size_mismatch: ${artifact.path}`);
-    if (hash.digest("hex") !== artifact.sha256) {
-        throw new Error(`model_file_sha256_mismatch: ${artifact.path}`);
-    }
+    await verifyModelArtifacts(MODEL_CONFIG, directory);
 }
 
 /** Explicit preparation step; inference never calls this downloader. */
 export async function prepareModelDirectory(directory: string = modelDirectory()): Promise<void> {
-    for (const artifact of MODEL_CONFIG.manifest) {
-        try {
-            await verifyModelFile(directory, artifact);
-            continue;
-        } catch {
-            // Only explicit preparation may replace a missing or unverified cache entry.
-        }
-        const url = `https://huggingface.co/Xenova/multilingual-e5-small/resolve/${MODEL_CONFIG.revision}/${artifact.path}`;
-        const response = await fetch(url, {
-            method: "GET",
-            credentials: "omit",
-            redirect: "follow",
-            signal: AbortSignal.timeout(120_000),
-        });
-        if (!response.ok) throw new Error(`model_download_http: ${artifact.path}: ${response.status}`);
-        if (!response.body) throw new Error(`model_download_body_missing: ${artifact.path}`);
-        const reader = response.body.getReader();
-        const hash = createHash("sha256");
-        const chunks: Uint8Array[] = [];
-        let bytes = 0;
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                bytes += value.byteLength;
-                if (bytes > artifact.bytes) throw new Error(`model_download_size_mismatch: ${artifact.path}`);
-                hash.update(value);
-                chunks.push(value);
-            }
-        } finally {
-            await reader.cancel().catch(() => {});
-            reader.releaseLock();
-        }
-        if (bytes !== artifact.bytes) throw new Error(`model_download_size_mismatch: ${artifact.path}`);
-        if (hash.digest("hex") !== artifact.sha256) {
-            throw new Error(`model_download_sha256_mismatch: ${artifact.path}`);
-        }
-        const file = join(directory, artifact.path);
-        await mkdir(dirname(file), { recursive: true });
-        const temporary = `${file}.${randomUUID()}.tmp`;
-        try {
-            // Publish only complete, hash-verified bytes on the same filesystem.
-            await writeFile(temporary, Buffer.concat(chunks, bytes), { flag: "wx", mode: 0o600 });
-            await rename(temporary, file);
-        } finally {
-            await rm(temporary, { force: true });
-        }
-    }
+    await prepareModelArtifacts(MODEL_CONFIG, directory);
 }
 
 /**
