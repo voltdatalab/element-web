@@ -85,6 +85,14 @@ jobs:
                   ELEMENT_AGENTS_SEMANTIC_INTEGRATION: "1"
               run: pnpm --ignore-workspace exec vitest run --config vitest.config.ts evaluateSemantic.test.ts
 
+            - name: Prepare the pinned public extractive QA model
+              run: node prepareQAModel.ts
+
+            - name: Verify real local cited answers and null decisions
+              env:
+                  ELEMENT_AGENTS_EVIDENCE_INTEGRATION: "1"
+              run: pnpm --ignore-workspace exec vitest run --config vitest.config.ts evaluateEvidence.test.ts
+
     firecracker-lab:
         name: firecracker-lab
         runs-on: ubuntu-24.04

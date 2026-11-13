@@ -6,8 +6,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 # Memória com escopos — laboratório sintético
 
 **Experimental e independente da aplicação.** Inclui fronteiras determinísticas de acesso/proveniência,
-baselines sem modelo e um [ensaio opcional de embeddings locais e abstenção](./SEMANTIC.md).
-Não gera respostas, não implementa Siesta/OptMem nem compactação por IA, e não integra memória à produção.
+baselines sem modelo, [embeddings locais e abstenção](./SEMANTIC.md) e
+[respostas extrativas citadas com opção nula](./EVIDENCE.md).
+Não gera texto livre, não implementa Siesta/OptMem nem compactação por IA, e não integra memória à produção.
 
 ## Executar
 

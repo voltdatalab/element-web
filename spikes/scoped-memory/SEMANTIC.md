@@ -108,5 +108,8 @@ CPU, runtime, arredondamento numérico e tamanho dos textos podem alterar custos
 Manter a busca semântica como geradora de candidatos, mas não usar seu escore sozinho para autorizar uma
 resposta factual. O próximo ensaio deve verificar suporte entre pergunta, trecho e eventual afirmação,
 preservando fontes e a recusa quando o detalhe não aparece. Não há evidência para adotar este corte,
-construir uma árvore de resumos ou importar históricos em produção. Modelos geradores e integração real
-continuam dependendo de escopo/orçamento próprios.
+construir uma árvore de resumos ou importar históricos em produção.
+
+O [ensaio seguinte de leitura extrativa citada](./EVIDENCE.md) já mede uma opção nula explícita, sem
+ajustar o corte aos gabaritos, e mostra limites adicionais de relevância/completude. Modelos geradores
+e integração real continuam dependendo de escopo/orçamento próprios.
