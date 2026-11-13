@@ -5,8 +5,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 # Memória com escopos — laboratório sintético
 
-**Experimental, independente da aplicação e sem LLM.** Esta primeira etapa verifica fronteiras de acesso,
-proveniência e persistência. Não implementa Siesta/OptMem, busca semântica ou compactação por IA.
+**Experimental e independente da aplicação.** Inclui fronteiras determinísticas de acesso/proveniência,
+baselines sem modelo e um [ensaio opcional de embeddings locais e abstenção](./SEMANTIC.md).
+Não gera respostas, não implementa Siesta/OptMem nem compactação por IA, e não integra memória à produção.
 
 ## Executar
 
@@ -23,7 +24,7 @@ Ela cria somente um banco em memória, executa asserções e imprime JSON com `P
 se todas passarem. Aceita zero argumentos: não abre um banco de produção nem carrega configurações,
 credenciais, endpoints, mensagens ou arquivos de usuários.
 
-Para instalar apenas as ferramentas deste laboratório e repetir as verificações:
+Para instalar as dependências isoladas deste laboratório e repetir as verificações:
 
 ```sh
 cd spikes/scoped-memory
@@ -134,7 +135,7 @@ mas **não transforma a baixa qualidade de recuperação num falso sucesso**: os
 O status `COMPLETED_SYNTHETIC_RETRIEVAL` significa avaliação concluída, não busca pronta para produção.
 
 As listas retornadas pelas estratégias são diagnósticas, não capacidades aceitas por `MemoryLab.dispatch`.
-Nenhum retorno é enviado a modelo ou sala. As notas continuam segregadas pelo mecanismo da etapa inicial;
+Nas duas estratégias acima, nenhum retorno é enviado a modelo ou sala. As notas continuam segregadas pelo mecanismo da etapa inicial;
 não foi criado cache global ou sessão compartilhada entre DMs.
 
 ## Limites e próximo teste
@@ -150,10 +151,9 @@ O banco de teste não tem criptografia de conteúdo nem política de expurgo. A 
 laboratório são confiáveis; isto não é sandbox para executar código hostil. Não há autorização para reutilizar
 uma sessão que já recebeu conteúdo privado numa audiência diferente.
 
-Próxima etapa: testar recuperação apoiada por resumos ou outra estratégia semântica e a capacidade de
-reconhecer ausência de evidência, mantendo estes baselines, gabaritos e fronteiras.
-A fase com LLM e qualquer integração com produção
-precisam de escopo e orçamento próprios.
+O [ensaio semântico local e de abstenção](./SEMANTIC.md) já compara estes mesmos baselines, gabaritos e
+fronteiras com embeddings. A recuperação melhorou, mas o corte de similaridade não resolveu a suficiência
+da evidência. Modelos geradores, resumos e qualquer integração com produção precisam de escopo e orçamento próprios.
 
 Este diretório não é importado pela API, não altera APIs/identidades existentes, não lê volumes de DMs,
 não publica anexos e não controla Synapse, CapRover ou Firecracker. A sala compartilhada existente permanece

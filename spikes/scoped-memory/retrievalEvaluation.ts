@@ -27,7 +27,8 @@ export interface RetrievalRow {
     budgetViolation: boolean;
 }
 
-function summarize(rows: readonly RetrievalRow[], limit: number) {
+/** Aggregate already-audited rows, keeping the same @K rules for synchronous and local-model runs. */
+export function summarizeRetrievalRows(rows: readonly RetrievalRow[], limit: number) {
     const positives = rows.filter((row) => row.expectedNoteIds.length > 0);
     const negatives = rows.filter((row) => row.expectedNoteIds.length === 0);
     const hits = positives.filter((row) => row.relevantHits > 0).length;
@@ -166,11 +167,11 @@ export function evaluateRetrieval(
             });
             return {
                 name: strategy.name,
-                summary: summarize(rows, limit),
+                summary: summarizeRetrievalRows(rows, limit),
                 byCategory: Object.fromEntries(
                     [...new Set(rows.map((row) => row.category))].map((category) => [
                         category,
-                        summarize(
+                        summarizeRetrievalRows(
                             rows.filter((row) => row.category === category),
                             limit,
                         ),

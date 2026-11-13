@@ -77,6 +77,14 @@ jobs:
             - name: Measure literal and lexical evidence retrieval
               run: node evaluate.ts
 
+            - name: Prepare the pinned public embedding model
+              run: node prepareEmbeddingModel.ts
+
+            - name: Verify real local semantic inference without runtime downloads
+              env:
+                  ELEMENT_AGENTS_SEMANTIC_INTEGRATION: "1"
+              run: pnpm --ignore-workspace exec vitest run --config vitest.config.ts evaluateSemantic.test.ts
+
     firecracker-lab:
         name: firecracker-lab
         runs-on: ubuntu-24.04
