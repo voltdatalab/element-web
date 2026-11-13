@@ -62,7 +62,7 @@ escolher uma área temporária. Nunca aponte esta classe experimental para bases
 - Consultas com aparência de SQL são texto literal; conteúdo com instruções não altera a política determinística.
 - Demonstração exercitada em um processo Node novo, sem carregador TypeScript externo.
 
-A suíte passou com **54 testes**, incluindo os 32 casos da matriz. `check` verifica os tipos;
+A etapa inicial foi validada com **54 testes**, incluindo os 32 casos da matriz. `check` verifica os tipos;
 `format:check` usa Oxfmt. O comando de demonstração possui asserções próprias e saída derivada da execução,
 não uma resposta de modelo nem um relatório estático de aprovação.
 
@@ -84,10 +84,63 @@ a partir de origens atuais.
 Uma nova versão deve apontar explicitamente para a nota que substitui; não se infere a decisão correta
 apenas pela data ou por similaridade do texto.
 
+## Avaliação de recuperação, sem LLM
+
+Execute da raiz do checkout:
+
+```sh
+node spikes/scoped-memory/evaluate.ts
+```
+
+O comando usa outro corpus fictício, o projeto Aurora: 24 notas iniciais e duas correções explícitas,
+totalizando 26 registros e 24 fontes atuais. São 24 consultas com gabaritos sintéticos definidos nas fixtures:
+seis trechos literais, seis perguntas por paráfrase, quatro perguntas sobre fatos corrigidos, quatro casos de
+permissão, dois de informação ausente e dois pedidos adversariais. Não são perguntas reais nem anotações
+validadas por pessoas; não medem desempenho geral em dados do Núcleo.
+
+As duas estratégias recebem a mesma pergunta e limite de três candidatos, sem receber o gabarito:
+
+- `literal`: busca a frase com o mecanismo já existente de `MemoryLab`.
+- `lexical`: normaliza palavras/acentos, remove palavras funcionais e pontua coincidências, com maior peso
+  para termos menos frequentes **somente nas fontes autorizadas**. Não usa sinônimos, embeddings ou IA.
+
+O avaliador usa o gabarito apenas depois da recuperação e emite fontes, versões, acertos, omissões e candidatos
+irrelevantes por caso/categoria. `expectedAnswer` é a resposta esperada da fixture, não uma resposta produzida
+pelo sistema. Encontrar o ID da fonte esperada não prova compreensão ou uma resposta factual correta.
+
+Resultados medidos com este conjunto e limite de três candidatos:
+
+- Dos 16 casos com fonte pertinente permitida, `literal` encontrou a fonte em 6 (37,5%) e `lexical` em 9 (56,25%).
+- Nenhuma estratégia encontrou a fonte esperada nas seis perguntas por paráfrase.
+- Nos quatro casos de correção, `lexical` encontrou a fonte atual em três; `literal`, em nenhum.
+- Nos oito casos sem fonte pertinente permitida, `lexical` devolveu candidatos autorizados irrelevantes em cinco;
+  `literal`, em nenhum. Um dos oito casos exige negação explícita do solicitante.
+- Não houve fonte de escopo proibido, nota superada, conteúdo de fonte adulterado, divergência de negação
+  ou ultrapassagem do limite de candidatos nas duas estratégias.
+
+`hitRateAtK` considera apenas os casos com gabarito positivo. `meanRecallAtK` mede a fração de fontes esperadas
+encontradas; `meanPrecisionAtK` é a média da fração de candidatos pertinentes por caso positivo, atribuindo zero
+a consultas vazias. `relevantHits`, o estado de acerto/omissão e as métricas @K consideram somente as primeiras
+K posições; o denominador da precisão é `min(retrieved.length, K)`. A lista retornada permanece completa para
+diagnóstico: autorização, origem, obsolescência, duplicatas e estouro de orçamento são auditados em todos os
+candidatos, inclusive os além de K. Candidatos irrelevantes nos negativos são contados separadamente: não
+significam vazamento nem resposta inventada, mas mostram por que recuperar algum texto não basta para afirmar
+que há resposta.
+
+A suíte completa desta etapa passou com **137 testes**. Há regressões do próprio avaliador contra retorno
+privado, fonte forjada, duplicação, fonte superada e estouro de orçamento. Falhas inesperadas do buscador não
+são convertidas em “informação ausente”. A CI executa `evaluate.ts` e exige as invariantes de segurança/integridade,
+mas **não transforma a baixa qualidade de recuperação num falso sucesso**: os erros continuam no relatório.
+O status `COMPLETED_SYNTHETIC_RETRIEVAL` significa avaliação concluída, não busca pronta para produção.
+
+As listas retornadas pelas estratégias são diagnósticas, não capacidades aceitas por `MemoryLab.dispatch`.
+Nenhum retorno é enviado a modelo ou sala. As notas continuam segregadas pelo mecanismo da etapa inicial;
+não foi criado cache global ou sessão compartilhada entre DMs.
+
 ## Limites e próximo teste
 
 Este resultado valida o mecanismo determinístico nestas fixtures, não certifica segurança do produto.
-Não cobre modelo obedecendo instruções maliciosas, qualidade de recuperação por paráfrase, respostas
+Não cobre modelo obedecendo instruções maliciosas, qualidade de respostas
 factuais, redução de tokens, carga, armazenamento adulterado, múltiplos escritores ou cancelamento de
 entrega distribuída. Material já devolvido antes de uma revogação não pode ser retirado da memória de
 um consumidor; uma integração futura precisa invalidar também seus contextos/caches e conferir acesso
@@ -97,8 +150,9 @@ O banco de teste não tem criptografia de conteúdo nem política de expurgo. A 
 laboratório são confiáveis; isto não é sandbox para executar código hostil. Não há autorização para reutilizar
 uma sessão que já recebeu conteúdo privado numa audiência diferente.
 
-Próxima etapa: comparar recuperação simples e recuperação apoiada por resumos, mantendo estas mesmas
-fronteiras e um conjunto de respostas esperadas. A fase com LLM e qualquer integração com produção
+Próxima etapa: testar recuperação apoiada por resumos ou outra estratégia semântica e a capacidade de
+reconhecer ausência de evidência, mantendo estes baselines, gabaritos e fronteiras.
+A fase com LLM e qualquer integração com produção
 precisam de escopo e orçamento próprios.
 
 Este diretório não é importado pela API, não altera APIs/identidades existentes, não lê volumes de DMs,

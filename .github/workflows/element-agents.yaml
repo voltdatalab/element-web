@@ -74,6 +74,9 @@ jobs:
             - name: Exercise the synthetic offline demo
               run: node run.ts
 
+            - name: Measure literal and lexical evidence retrieval
+              run: node evaluate.ts
+
     firecracker-lab:
         name: firecracker-lab
         runs-on: ubuntu-24.04
