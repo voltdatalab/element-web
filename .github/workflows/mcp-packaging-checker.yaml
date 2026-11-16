@@ -1,0 +1,29 @@
+# Copyright 2026 Volt Data Lab
+# SPDX-License-Identifier: AGPL-3.0-only
+name: MCP packaging file checker
+
+on:
+    push:
+        branches: [preserve/mcp-packaging-checker]
+        paths:
+            - spikes/infra-mcp-packaging/**
+            - .github/workflows/mcp-packaging-checker.yaml
+
+permissions:
+    contents: read
+
+jobs:
+    file-checker:
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+              with:
+                  node-version: 22.23.2
+            - name: Verify the selected Node runtime
+              run: test "$(node --version)" = "v22.23.2"
+            - name: Test only the file checker with inert fixtures
+              run: node --test spikes/infra-mcp-packaging/check.test.mts spikes/infra-mcp-packaging/rejection.test.mts

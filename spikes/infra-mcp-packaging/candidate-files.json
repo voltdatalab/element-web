@@ -1,0 +1,55 @@
+{
+    "version": 1,
+    "profiles": {
+        "backend": {
+            "LICENSE-AGPL-3.0": "5132c7f0475b02c8107a2e0f0363e70423c62d2664ab927e76193226e5e05905",
+            "LICENSE-COMMERCIAL": "1197de6d29c5037c6d9b5c3607d72eaa90b5045f2d623400e870825fdcf7666e",
+            "LICENSE-GPL-3.0": "8b1ba204bb69a0ade2bfcf65ef294a920f6bb361b317dba43c7ef29d96332b9b",
+            "ConsentProvider.ts": "4395381007b971fda9adf61e25290b5e23a020b295c898cdb47a8eea1e7fec9b",
+            "LocalOAuthProvider.ts": "3d3622319b9bf1a1bc303181b56d0d60d0427a583c5472ca8f45067046c49513",
+            "MatrixIdentityVerifier.ts": "525377284bcdbcaeaf1483be021723a503e3ebce7a4423afb356ccaff708c5d2",
+            "OAuthPersistence-types.ts": "b1e6121f7f8c1802499e33b0912a4cd7314e655ad83b2b04b00344d5cba707c0",
+            "OAuthPersistenceValidation.ts": "3eba38143b109cb7c59bf12f42dc75d67182666a10d4405b760217fd90a05776",
+            "OAuthStateStore.ts": "b6bdbbb0de2978950f6624121855868d5dd0111498e6ef745ed9ffed17dd782a",
+            "PilotServer.ts": "4988cb9b55f828d29880c33479f20506538c8b1c0b98ee844f640137e4cd3ba2",
+            "PrivateUnixHttpServer.ts": "e8ced00650d433fd60d33ebae42b2924d07a0200432f0456f0f40ab44556bebc",
+            "SqliteOAuthStateStore.ts": "52a0fcf38b5eb0f1fcee5424c4dfd39f30dac5c5ee0569f72858a29b4a9ef700",
+            "UnixRuntimeReader.ts": "278813a8b9bbb601736018caf0e7b3639bb41edee8e1f69ed7f8beea175bdd52",
+            "infraMcpApp.ts": "8812bc7685ae6c593d9c64019abe28cb6c6035004b89c03161b83947ca5bdb32",
+            "infraRuntimeTypes.ts": "04553041d74e7acde8478559eb5f14d9360eb6caafc49c9551f1a86a807eaea1",
+            "package.json": "83ad70df83ba93011245c3a80d708afe6209d1784381cc0ebe42949c6f77a605",
+            "pilot-control-types.ts": "4fa7e9dfc07593f18b548a50a5d5421cb814bdecf354b2872a511956c579c1dd",
+            "pilot-policy.ts": "2405cb493d3226219f7f8aad31fab047afff404ec68370c4e42a461c7577e77d",
+            "pilot-private-json.ts": "9e04c015fe93d76aaeacce825c220c4054e3c647626abab3175c3c03a5843b82",
+            "pilot-private-path.ts": "cbfc96731ce85b3325eac3ac4d795811e69a5a00874dbe291c0ef821aea243c3",
+            "pilotConfiguration.ts": "735ad944b4b4c04584171578bb86604189ed9e5012feeefb66bd808b1fbf2a81",
+            "pnpm-lock.yaml": "e0f000933c99c9807de9c63c489437c61b485d0b97d01834055300c3930ae6c4",
+            "runPilot.ts": "7a5dbc49d88ee0e3a876a2b8037613e2a8179239797a98370cb8f2d7a262e918"
+        },
+        "observer": {
+            "LICENSE-AGPL-3.0": "5132c7f0475b02c8107a2e0f0363e70423c62d2664ab927e76193226e5e05905",
+            "LICENSE-COMMERCIAL": "1197de6d29c5037c6d9b5c3607d72eaa90b5045f2d623400e870825fdcf7666e",
+            "LICENSE-GPL-3.0": "8b1ba204bb69a0ade2bfcf65ef294a920f6bb361b317dba43c7ef29d96332b9b",
+            "DockerRuntimeProbe.ts": "979e34f2491b5a9122abeb1c86a9cf1a28c88aeb6544bd9f03462306748c359b",
+            "RuntimeObserver.ts": "e1e80ddeef05257f50bb8b172bb9c970576cc39399868af5440eb46a13aa7869",
+            "infraRuntimeTypes.ts": "04553041d74e7acde8478559eb5f14d9360eb6caafc49c9551f1a86a807eaea1",
+            "package.json": "83ad70df83ba93011245c3a80d708afe6209d1784381cc0ebe42949c6f77a605",
+            "pnpm-lock.yaml": "e0f000933c99c9807de9c63c489437c61b485d0b97d01834055300c3930ae6c4",
+            "runObserver.ts": "b464663b3cbfe8cc806395aaf2e96dee4f2577ff6809e25271202ec8911e1448"
+        },
+        "operator": {
+            "LICENSE-AGPL-3.0": "5132c7f0475b02c8107a2e0f0363e70423c62d2664ab927e76193226e5e05905",
+            "LICENSE-COMMERCIAL": "1197de6d29c5037c6d9b5c3607d72eaa90b5045f2d623400e870825fdcf7666e",
+            "LICENSE-GPL-3.0": "8b1ba204bb69a0ade2bfcf65ef294a920f6bb361b317dba43c7ef29d96332b9b",
+            "MatrixIdentityVerifier.ts": "525377284bcdbcaeaf1483be021723a503e3ebce7a4423afb356ccaff708c5d2",
+            "infraRuntimeTypes.ts": "04553041d74e7acde8478559eb5f14d9360eb6caafc49c9551f1a86a807eaea1",
+            "package.json": "83ad70df83ba93011245c3a80d708afe6209d1784381cc0ebe42949c6f77a605",
+            "pilot-control-types.ts": "4fa7e9dfc07593f18b548a50a5d5421cb814bdecf354b2872a511956c579c1dd",
+            "pilot-private-json.ts": "9e04c015fe93d76aaeacce825c220c4054e3c647626abab3175c3c03a5843b82",
+            "pilot-private-path.ts": "cbfc96731ce85b3325eac3ac4d795811e69a5a00874dbe291c0ef821aea243c3",
+            "pilotConfiguration.ts": "735ad944b4b4c04584171578bb86604189ed9e5012feeefb66bd808b1fbf2a81",
+            "pilotControl.ts": "f1acf582f85818261feb0966687c5934ab105cf9e3f4a9c1d82db3bdf1cd21da",
+            "pnpm-lock.yaml": "e0f000933c99c9807de9c63c489437c61b485d0b97d01834055300c3930ae6c4"
+        }
+    }
+}
