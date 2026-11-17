@@ -1,0 +1,81 @@
+# Copyright 2026 Volt Data Lab
+# SPDX-License-Identifier: AGPL-3.0-only
+name: MCP inert source packages
+
+on:
+    push:
+        branches: [preserve/mcp-source-packages]
+        paths:
+            - spikes/infra-mcp-packaging/**
+            - spikes/infra-mcp-source-snapshot/**
+            - .github/workflows/mcp-source-packages.yaml
+
+permissions:
+    contents: read
+
+jobs:
+    source-packages:
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        env:
+            TMPDIR: ${{ runner.temp }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+              with:
+                  node-version: 22.23.2
+            - name: Check packaging prerequisites
+              run: |
+                  test "$(node --version)" = "v22.23.2"
+                  tar --version
+            - name: Test only the inert packaging recipe
+              run: node --test spikes/infra-mcp-packaging/pack.test.mts
+            - name: Build twice and inspect real archive members
+              id: pack
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  export REPRO_ROOT="$(mktemp -d "$TMPDIR/mcp-source-repro.XXXXXX")"
+                  node spikes/infra-mcp-packaging/pack.mts spikes/infra-mcp-source-snapshot "$REPRO_ROOT/a"
+                  node spikes/infra-mcp-packaging/pack.mts spikes/infra-mcp-source-snapshot "$REPRO_ROOT/b"
+                  for role in backend observer operator; do
+                      cmp "$REPRO_ROOT/a/candidate-$role.tar" "$REPRO_ROOT/b/candidate-$role.tar"
+                  done
+                  cmp "$REPRO_ROOT/a/SHA256SUMS" "$REPRO_ROOT/b/SHA256SUMS"
+                  (cd "$REPRO_ROOT/a" && sha256sum -c SHA256SUMS)
+                  python3 - <<'PY'
+                  import hashlib, json, os, pathlib, subprocess, tarfile
+                  root = pathlib.Path(os.environ["REPRO_ROOT"])
+                  manifest = pathlib.Path("spikes/infra-mcp-packaging/candidate-files.json").resolve()
+                  profiles = json.loads(manifest.read_text())["profiles"]
+                  assert set(profiles) == {"backend", "observer", "operator"}
+                  for role, expected in profiles.items():
+                      with tarfile.open(root / "a" / f"candidate-{role}.tar", "r:") as archive:
+                          members = archive.getmembers()
+                          assert [m.name for m in members] == sorted(expected)
+                          stage = root / f"inspected-{role}"
+                          stage.mkdir()
+                          for member in members:
+                              assert member.isfile() and member.uid == member.gid == member.mtime == 0
+                              assert member.mode == 0o644
+                              data = archive.extractfile(member).read()
+                              assert hashlib.sha256(data).hexdigest() == expected[member.name]
+                              (stage / member.name).write_bytes(data)
+                          assert all(name in expected for name in ["LICENSE-AGPL-3.0", "LICENSE-COMMERCIAL", "LICENSE-GPL-3.0"])
+                          subprocess.run(["node", "spikes/infra-mcp-packaging/check.mts", str(manifest), role, str(stage)], check=True)
+                  print("DETERMINISTIC_INERT_SOURCE_CANDIDATES_VERIFIED")
+                  PY
+                  echo "directory=$REPRO_ROOT/a" >> "$GITHUB_OUTPUT"
+            - name: Preserve candidate source archives only
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              with:
+                  name: mcp-source-candidates-${{ github.sha }}
+                  if-no-files-found: error
+                  retention-days: 30
+                  path: |
+                      ${{ steps.pack.outputs.directory }}/candidate-backend.tar
+                      ${{ steps.pack.outputs.directory }}/candidate-observer.tar
+                      ${{ steps.pack.outputs.directory }}/candidate-operator.tar
+                      ${{ steps.pack.outputs.directory }}/SHA256SUMS
