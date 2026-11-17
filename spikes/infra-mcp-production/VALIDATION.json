@@ -1,0 +1,51 @@
+{
+    "schemaVersion": 1,
+    "scope": "Production dependency installation only; not application import, runtime, IPC, revocation or deploy acceptance",
+    "nodeVersion": "v22.23.2",
+    "pnpmVersion": "12.11.2",
+    "sourceInputs": "Exact package.json and pnpm-lock.yaml from spikes/infra-mcp-source-snapshot; hashes are pinned in expected-inventory.json",
+    "initialLocalInstallations": 2,
+    "ownedDirectoriesOutsideMonorepo": true,
+    "separateStoresAndFreshHomeXDG": true,
+    "ambientEnvironmentPassed": false,
+    "userAndGlobalNpmConfigFiles": "Separate owned empty files",
+    "registry": "https://registry.npmjs.org/",
+    "installFlags": [
+        "--prod",
+        "--frozen-lockfile",
+        "--ignore-scripts",
+        "--ignore-pnpmfile",
+        "--ignore-workspace",
+        "--registry=https://registry.npmjs.org/",
+        "--store-dir=<OWNED_STORE>",
+        "--config.manage-package-manager-versions=false",
+        "--config.verify-store-integrity=true",
+        "--config.side-effects-cache=false",
+        "--config.update-notifier=false",
+        "--config.fetch-retries=0",
+        "--reporter=ndjson"
+    ],
+    "packagesPerInstallation": 92,
+    "publishedFilesVerifiedPerInstallation": 3638,
+    "installerGeneratedBinWrappersPerInstallation": 2,
+    "directProductionVersions": {
+        "@modelcontextprotocol/sdk": "1.32.2",
+        "express": "5.3.0",
+        "zod": "4.6.7"
+    },
+    "lockAndManifestUnchanged": true,
+    "developmentToolsInstalled": false,
+    "lifecycleExecutionLogRecords": 0,
+    "reportedIgnoredScriptPackageNames": [],
+    "pnpmStoreStatusPassed": ["a", "b"],
+    "independentIntegrityProof": "92 public registry tarballs were downloaded without authentication, SHA512 SRI matched the unchanged lock and own pnpm store index, and every regular archive member was compared byte-for-byte to the installed files in both directories. No installed module was imported.",
+    "normalizedInventoriesIdentical": true,
+    "initialNormalizedInventorySHA256": "c1caf39aca335ec53e8473c92a4e3ac1884e551a56779c60bc68f4018c399706",
+    "normalization": "Only the owned per-installation root was replaced for the two pnpm-generated bin wrappers. Published file digests and package versions/integrities were not normalized.",
+    "limits": [
+        "Registry selection, input audit and a clean process environment are not an OS-enforced network sandbox.",
+        "The two generated bin wrappers are installer output, not published tarball members; compare them between paired runs, not as package tarball files.",
+        "The committed expected-inventory.json is a frozen integrity reference derived from the audited tarballs. It must not be regenerated automatically to accept a mismatch.",
+        "No compiler, application entrypoint, service, listener, IPC/systemd validation or deployment was executed. Paused operations remain paused."
+    ]
+}

@@ -1,0 +1,67 @@
+# Copyright 2026 Volt Data Lab
+# SPDX-License-Identifier: AGPL-3.0-only
+name: MCP production dependency installation
+
+on:
+    push:
+        branches: [preserve/mcp-production-dependencies]
+        paths:
+            - spikes/infra-mcp-production/**
+            - spikes/infra-mcp-source-snapshot/package.json
+            - spikes/infra-mcp-source-snapshot/pnpm-lock.yaml
+            - .github/workflows/mcp-production-dependencies.yaml
+
+permissions:
+    contents: read
+
+jobs:
+    production-installation:
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+              with:
+                  persist-credentials: false
+            - name: Prepare an empty toolchain directory outside the checkout
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  mkdir "$RUNNER_TEMP/mcp-production-toolchain"
+                  echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+            - name: Set up only the pinned package manager and Node
+              id: toolchain
+              uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4
+              with:
+                  version: 12.11.2
+                  runtime: node@22.23.2
+                  node-version-file: "false"
+                  working-directory: ${{ runner.temp }}/mcp-production-toolchain
+                  registry: https://registry.npmjs.org/
+                  install: false
+                  cache: false
+            - name: Check Node and test only the new validator
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  test "$(node --version)" = "v22.23.2"
+                  node --test spikes/infra-mcp-production/validate.test.mts
+            - name: Install production twice outside the monorepo and verify bytes
+              shell: bash
+              env:
+                  PNPM_CLI: ${{ steps.toolchain.outputs.bin-dest }}/pnpm
+              run: |
+                  set -euo pipefail
+                  node spikes/infra-mcp-production/validate.mts \
+                      spikes/infra-mcp-source-snapshot \
+                      "$PNPM_CLI" \
+                      "$RUNNER_TEMP/mcp-production-evidence"
+            - name: Preserve only sanitized inventories and receipt
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              with:
+                  name: mcp-production-validation-${{ github.sha }}
+                  if-no-files-found: error
+                  retention-days: 30
+                  path: |
+                      ${{ runner.temp }}/mcp-production-evidence/receipt.json
+                      ${{ runner.temp }}/mcp-production-evidence/inventory-a.json
+                      ${{ runner.temp }}/mcp-production-evidence/inventory-b.json
