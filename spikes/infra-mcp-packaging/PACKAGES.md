@@ -10,7 +10,15 @@ scanner de segredos ou autorização para executar os candidatos.
 
 ## Pré-requisitos e comandos
 
-- Linux, Node **22.23.2**, GNU tar **1.34** (versões exercitadas).
+- Linux, Node **22.23.2**, GNU tar **1.34** (versões exercitadas localmente).
+  A CI também exerceu GNU tar **1.35**. A reprodução byte a byte é qualificada
+  por versão de GNU tar: duas saídas no mesmo ambiente são idênticas, mas 1.34
+  e 1.35 codificam diferentemente campos ustar de dispositivo não utilizados em
+  arquivos regulares e, por consequência, o checksum do cabeçalho. Os nomes,
+  bytes e SHA-256 dos membros e os metadados exigidos permanecem idênticos;
+  o SHA-256 do arquivo `.tar` e o `SHA256SUMS` podem diferir entre essas versões.
+  Não comparar hashes de contêineres de versões distintas como se fossem uma
+  reprodução com a mesma toolchain. Nenhum hash de fonte foi regenerado.
 - `TMPDIR` explicitamente apontando para scratch privado do perfil, já existente.
 - Corpus plano com os bytes aprovados de `candidate-files.json`; o snapshot de teste
   `spikes/infra-mcp-source-snapshot/` é fornecido separadamente, não regenerado pela receita.
