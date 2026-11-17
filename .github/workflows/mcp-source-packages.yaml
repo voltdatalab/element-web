@@ -17,8 +17,6 @@ jobs:
     source-packages:
         runs-on: ubuntu-24.04
         timeout-minutes: 5
-        env:
-            TMPDIR: ${{ runner.temp }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
               with:
@@ -28,6 +26,7 @@ jobs:
                   node-version: 22.23.2
             - name: Check packaging prerequisites
               run: |
+                  echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
                   test "$(node --version)" = "v22.23.2"
                   tar --version
             - name: Test only the inert packaging recipe
