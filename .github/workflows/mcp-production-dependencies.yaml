@@ -39,6 +39,7 @@ jobs:
                   registry: https://registry.npmjs.org/
                   install: false
                   cache: false
+                  cache-dependency-path: spikes/infra-mcp-source-snapshot/pnpm-lock.yaml
             - name: Check Node and test only the new validator
               shell: bash
               run: |
